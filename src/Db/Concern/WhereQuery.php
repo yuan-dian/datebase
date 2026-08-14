@@ -109,12 +109,9 @@ trait WhereQuery
         if ($field instanceof Closure) {
             $sub = $this->newSubQuery();
             $field($sub);
-            // 闭包接收数组引用：Builder 解析时将子条件合并进条件组
-            $this->options['where'][$logic][] = function (array &$subWhere) use ($sub) {
-                $subWhere = array_merge(
-                    $subWhere,
-                    $sub->options['where'] ?? []
-                );
+            // 闭包直接返回子条件组：Builder 解析时递归合并（避免引用参数，兼容 TypePHP AOT）
+            $this->options['where'][$logic][] = static function () use ($sub): array {
+                return $sub->options['where'] ?? [];
             };
             return $this;
         }

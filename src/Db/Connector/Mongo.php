@@ -21,12 +21,18 @@ use yuandian\Database\Exceptions\DbException;
 
 class Mongo extends Connection
 {
-    protected $dbName = '';
-    protected $typeMap = 'array';
-    protected $mongo;
-    protected $cursor;
-    protected $session_uuid;
-    protected $sessions = [];
+    protected string $dbName = '';
+    protected array|string $typeMap = 'array';
+    protected ?Manager $mongo = null;
+    protected ?Cursor $cursor = null;
+    protected ?string $session_uuid = null;
+    protected array $sessions = [];
+
+    /** @var array<int, Manager> */
+    protected array $links = [];
+    protected ?Manager $linkRead = null;
+    protected ?Manager $linkWrite = null;
+    protected string $queryStr = '';
 
     protected array $config = [
         'type'            => '',
@@ -254,20 +260,38 @@ class Mongo extends Connection
         $result = $this->cursor->toArray();
 
         if ($this->getConfig('pk_convert_id')) {
-            foreach ($result as &$data) {
-                $this->convertObjectID($data);
+            foreach ($result as $key => $data) {
+                $result[$key] = $this->convertObjectID($data);
             }
         }
 
         return $result;
     }
 
-    protected function convertObjectID(array &$data): void
+    protected function convertObjectID(array $data): array
     {
         if (isset($data['_id']) && is_object($data['_id'])) {
             $data['id'] = $data['_id']->__toString();
             unset($data['_id']);
         }
+
+        return $data;
+    }
+
+    /**
+     * 递归将数组中的 ObjectID 转为字符串（替代 array_walk_recursive 引用回调）
+     */
+    protected function convertIdsToStrings(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if ($value instanceof ObjectID) {
+                $data[$key] = $value->__toString();
+            } elseif (is_array($value)) {
+                $data[$key] = $this->convertIdsToStrings($value);
+            }
+        }
+
+        return $data;
     }
 
     public function mongoLog(string $type, $data, array $options = [])
@@ -277,11 +301,7 @@ class Mongo extends Connection
         }
 
         if (is_array($data)) {
-            array_walk_recursive($data, function (&$value) {
-                if ($value instanceof ObjectID) {
-                    $value = $value->__toString();
-                }
-            });
+            $data = $this->convertIdsToStrings($data);
         }
 
         switch (strtolower($type)) {
@@ -466,11 +486,11 @@ class Mongo extends Connection
         $id = $this->builder->getLastInsID();
 
         if (is_array($id)) {
-            array_walk($id, function (&$item, $key) {
+            foreach ($id as $key => $item) {
                 if ($item instanceof ObjectID) {
-                    $item = $item->__toString();
+                    $id[$key] = $item->__toString();
                 }
-            });
+            }
             return implode(',', $id);
         } elseif ($id instanceof ObjectID) {
             return $id->__toString();

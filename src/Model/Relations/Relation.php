@@ -17,7 +17,7 @@ abstract class Relation
     protected string $foreignKey;
     protected string $localKey;
 
-    public function __construct(Model $parent, string $related, ?string $foreignKey = null, ?string $localKey = null)
+    public function __construct(Model $parent, string $related, string $foreignKey, string $localKey)
     {
         $this->parent = $parent;
         $this->related = $related;

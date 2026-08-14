@@ -191,7 +191,8 @@ abstract class Model
     {
         $this->loadedRelations[$name] = true;
 
-        if (property_exists($this, $name)) {
+        // 结果为 null 时跳过赋值：避免向非可空关联属性（如 Profile $profile）塞入 null（TypePHP 类型不可变）
+        if ($result !== null && property_exists($this, $name)) {
             $this->$name = $result;
         }
 
@@ -230,8 +231,8 @@ abstract class Model
 
         $this->loadedRelations[$name] = true;
 
-        // 同步到属性
-        if (property_exists($this, $name)) {
+        // 同步到属性（null 时跳过赋值，兼容可空/非可空关联属性声明）
+        if ($result !== null && property_exists($this, $name)) {
             $this->$name = $result;
         }
 
@@ -483,8 +484,8 @@ abstract class Model
         $query = $this->newQuery();;
         $id = $query->insert($data);
 
-        // 自增主键回填
-        if ($pkType === IdType::AUTO && $id > 0) {
+        // 自增主键回填（SQL 驱动返回 int；Mongo 驱动返回字符串 ID，需兼容）
+        if ($pkType === IdType::AUTO && (int)$id > 0) {
             $this->$pkProp = $id;
         }
 
@@ -633,7 +634,10 @@ abstract class Model
                     $value = $model::castFromJson($value, $jsonColumns[$propName]);
                 }
 
-                $model->$propName = $value;
+                // NULL 跳过赋值：保留属性默认值，避免向非可空属性塞 null（TypePHP 类型不可变）
+                if ($value !== null) {
+                    $model->$propName = $value;
+                }
             }
         }
 

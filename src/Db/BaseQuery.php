@@ -338,7 +338,10 @@ abstract class BaseQuery
                     $value = $model::castFromJson($value, $jsonColumns[$propName]);
                 }
 
-                $model->$propName = $value;
+                // NULL 跳过赋值：保留属性默认值，避免向非可空属性塞 null（TypePHP 类型不可变）
+                if ($value !== null) {
+                    $model->$propName = $value;
+                }
             }
         }
 

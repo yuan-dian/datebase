@@ -64,7 +64,7 @@ class MongoQuery extends BaseQuery
         return $result;
     }
 
-    public function count(?string $field = null): int
+    public function count(string $field = '*'): int
     {
         $result = $this->cmd('count');
 
@@ -87,12 +87,13 @@ class MongoQuery extends BaseQuery
     {
         $result = $this->cmd('multiAggregate', [$aggregate, $groupBy]);
 
-        foreach ($result as &$row) {
+        foreach ($result as $key => $row) {
             if (isset($row['_id']) && !empty($row['_id'])) {
                 foreach ($row['_id'] as $k => $v) {
                     $row[$k] = $v;
                 }
                 unset($row['_id']);
+                $result[$key] = $row;
             }
         }
 

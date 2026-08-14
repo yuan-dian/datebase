@@ -17,8 +17,8 @@ use yuandian\Database\Exceptions\DbException;
 
 class Mongo
 {
-    protected $connection;
-    protected $insertId = [];
+    protected Connection $connection;
+    protected array $insertId = [];
 
     protected array $exp = [
         '<>'               => 'ne',

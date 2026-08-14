@@ -343,8 +343,7 @@ class Builder extends BaseBuilder
                 } // Handle Closure (nested conditions)
                 elseif ($condition instanceof \Closure) {
                     $subBind = [];
-                    $subWhere = [];
-                    $condition($subWhere);
+                    $subWhere = $condition();
                     $nested = $this->parseWhereGroup($subWhere, $subBind);
                     $clause = empty($nested) ? '' : '( ' . $nested . ' )';
                     $bind = array_merge($bind, $subBind);
