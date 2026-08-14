@@ -345,6 +345,21 @@ abstract class BaseQuery
             }
         }
 
+        // 填充原始数据快照（dirty 检测基准）：存属性回读值（类型已由属性声明转换），
+        // JSON 列编码为字符串，与 getDirtyData 的比较基准保持一致
+        $original = [];
+        foreach ($columnMap as $prop => $column) {
+            if (!property_exists($model, $prop) || !isset($model->$prop)) {
+                continue;
+            }
+            $value = $model->$prop;
+            if (array_key_exists($prop, $jsonColumns)) {
+                $value = $model::castToJson($value);
+            }
+            $original[$column] = $value;
+        }
+        $model->setOriginal($original);
+
         return $model;
     }
 
@@ -470,12 +485,27 @@ abstract class BaseQuery
         // 3. 确保当前页合法
         $currentPage = max(1, min($currentPage, $lastPage));
 
-        // 4. 设置分页参数
+        // 4. 设置分页参数（保存原值，查询后恢复，避免污染查询对象）
+        $prevLimit = $this->options['limit'] ?? null;
+        $prevOffset = $this->options['offset'] ?? null;
         $this->options['limit'] = $listRows;
         $this->options['offset'] = ($currentPage - 1) * $listRows;
 
         // 5. 查询当前页数据
-        $items = $this->select();
+        try {
+            $items = $this->select();
+        } finally {
+            if ($prevLimit === null) {
+                unset($this->options['limit']);
+            } else {
+                $this->options['limit'] = $prevLimit;
+            }
+            if ($prevOffset === null) {
+                unset($this->options['offset']);
+            } else {
+                $this->options['offset'] = $prevOffset;
+            }
+        }
 
         // 6. 构建分页器
         return Paginator::make(
@@ -492,12 +522,27 @@ abstract class BaseQuery
      */
     protected function paginateSimple(int $listRows, int $currentPage): Paginator
     {
-        // 1. 多查一条用于判断是否有下一页
+        // 1. 多查一条用于判断是否有下一页（保存原值，查询后恢复，避免污染查询对象）
+        $prevLimit = $this->options['limit'] ?? null;
+        $prevOffset = $this->options['offset'] ?? null;
         $this->options['limit'] = $listRows + 1;
         $this->options['offset'] = ($currentPage - 1) * $listRows;
 
         // 2. 查询数据
-        $items = $this->select();
+        try {
+            $items = $this->select();
+        } finally {
+            if ($prevLimit === null) {
+                unset($this->options['limit']);
+            } else {
+                $this->options['limit'] = $prevLimit;
+            }
+            if ($prevOffset === null) {
+                unset($this->options['offset']);
+            } else {
+                $this->options['offset'] = $prevOffset;
+            }
+        }
 
         // 3. 判断是否有下一页
         $hasMore = count($items) > $listRows;

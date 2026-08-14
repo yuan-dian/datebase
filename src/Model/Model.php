@@ -151,7 +151,8 @@ abstract class Model
         $columnMap = static::getColumnMap();
 
         foreach ($columnMap as $prop => $column) {
-            if (property_exists($this, $prop) && isset($this->$prop)) {
+            // 仅丢弃 null 与未初始化属性；空数组 []、0、'' 均保留（?? 对 uninitialized typed property 不抛错）
+            if (property_exists($this, $prop) && ($this->$prop ?? null) !== null) {
                 $data[$column] = $this->$prop;
             }
         }
@@ -191,12 +192,25 @@ abstract class Model
     {
         $this->loadedRelations[$name] = true;
 
-        // 结果为 null 时跳过赋值：避免向非可空关联属性（如 Profile $profile）塞入 null（TypePHP 类型不可变）
-        if ($result !== null && property_exists($this, $name)) {
-            $this->$name = $result;
+        if (property_exists($this, $name)) {
+            if ($result !== null) {
+                $this->$name = $result;
+            } elseif ($this->isNullableProperty($name)) {
+                // 可空属性：赋 null 默认值，避免无默认值属性访问时抛 "must not be accessed before initialization"
+                $this->$name = null;
+            }
         }
 
         return $this;
+    }
+
+    /**
+     * 属性是否允许 null（可空类型或无类型声明）
+     */
+    protected function isNullableProperty(string $name): bool
+    {
+        $type = (new \ReflectionProperty($this, $name))->getType();
+        return $type === null || $type->allowsNull();
     }
 
     protected function loadRelation(string $name): mixed
@@ -231,9 +245,13 @@ abstract class Model
 
         $this->loadedRelations[$name] = true;
 
-        // 同步到属性（null 时跳过赋值，兼容可空/非可空关联属性声明）
-        if ($result !== null && property_exists($this, $name)) {
-            $this->$name = $result;
+        // 同步到属性（null 时仅对可空属性赋默认值，避免未初始化访问崩溃；非可空属性如 Profile 保持跳过）
+        if (property_exists($this, $name)) {
+            if ($result !== null) {
+                $this->$name = $result;
+            } elseif ($this->isNullableProperty($name)) {
+                $this->$name = null;
+            }
         }
 
         return $result;
@@ -439,6 +457,20 @@ abstract class Model
         return $this->exists;
     }
 
+    /**
+     * 写入原始数据快照（dirty 检测基准，由查询层填充）
+     */
+    public function setOriginal(array $original): static
+    {
+        $this->original = $original;
+        return $this;
+    }
+
+    public function getOriginal(): array
+    {
+        return $this->original;
+    }
+
     // ===================== 内部 CRUD =====================
 
     protected function doInsert(array $data): bool
@@ -640,6 +672,20 @@ abstract class Model
                 }
             }
         }
+
+        // 填充原始数据快照（dirty 检测基准）：与 BaseQuery::toModel 保持一致
+        $original = [];
+        foreach ($columnMap as $prop => $column) {
+            if (!property_exists($model, $prop) || !isset($model->$prop)) {
+                continue;
+            }
+            $value = $model->$prop;
+            if (array_key_exists($prop, $jsonColumns)) {
+                $value = $model::castToJson($value);
+            }
+            $original[$column] = $value;
+        }
+        $model->setOriginal($original);
 
         return $model;
     }

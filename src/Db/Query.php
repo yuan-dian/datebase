@@ -169,6 +169,11 @@ class Query extends BaseQuery
 
     public function insertAll(array $dataList): int
     {
+        // 空数组短路：避免生成空 SQL 导致 PDO prepare('') 异常
+        if (empty($dataList)) {
+            return 0;
+        }
+
         [$sql, $bind] = $this->builder->insertAll($this->options['table'], $dataList);
         $this->connection->execute($sql, $bind);
 
