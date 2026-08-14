@@ -1,0 +1,27 @@
+{
+  "name": "yuandian/database",
+  "description": "A lightweight PHP 8.1+ ORM with annotations, relations, soft deletes and multi-datasource support.",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.1",
+    "yuandian/container": "^1.0",
+    "yuandian/tools": "dev-master",
+    "ext-pdo": "*"
+  },
+  "suggest": {
+    "ext-mongodb": "Required for MongoDB support",
+    "ext-oci8": "Required for Oracle support"
+  },
+  "autoload": {
+    "psr-4": {
+      "yuandian\\Database\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "yuandian\\Database\\Tests\\": "tests/"
+    }
+  },
+  "minimum-stability": "dev"
+}

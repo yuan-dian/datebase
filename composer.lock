@@ -1,0 +1,173 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "ef026121b976a90f232f84adefef062b",
+    "packages": [
+        {
+            "name": "psr/container",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-fig/container.git",
+                "reference": "707984727bd5b2b670e59559d3ed2500240cf875"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-fig/container/zipball/707984727bd5b2b670e59559d3ed2500240cf875",
+                "reference": "707984727bd5b2b670e59559d3ed2500240cf875",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.4.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Psr\\Container\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "PHP-FIG",
+                    "homepage": "https://www.php-fig.org/"
+                }
+            ],
+            "description": "Common Container Interface (PHP FIG PSR-11)",
+            "homepage": "https://github.com/php-fig/container",
+            "keywords": [
+                "PSR-11",
+                "container",
+                "container-interface",
+                "container-interop",
+                "psr"
+            ],
+            "support": {
+                "issues": "https://github.com/php-fig/container/issues",
+                "source": "https://github.com/php-fig/container"
+            },
+            "time": "2023-09-22T11:11:30+00:00"
+        },
+        {
+            "name": "yuandian/container",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/yuan-dian/container.git",
+                "reference": "1d6f5fb84fbc24c46ea5eebd2fe3aa9e80545d17"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/yuan-dian/container/zipball/1d6f5fb84fbc24c46ea5eebd2fe3aa9e80545d17",
+                "reference": "1d6f5fb84fbc24c46ea5eebd2fe3aa9e80545d17",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1",
+                "psr/container": "^2.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "yuandian\\Container\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "yuandian",
+                    "email": "467490186@qq.com"
+                }
+            ],
+            "description": "PHP Container.",
+            "keywords": [
+                "ci",
+                "container",
+                "php"
+            ],
+            "support": {
+                "issues": "https://github.com/yuan-dian/container/issues",
+                "source": "https://github.com/yuan-dian/container/tree/v1.0.0"
+            },
+            "time": "2025-05-23T10:03:35+00:00"
+        },
+        {
+            "name": "yuandian/tools",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/yuan-dian/tools.git",
+                "reference": "7795e2ba77283cfa3ffc0d0065ec693306a96c91"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/yuan-dian/tools/zipball/7795e2ba77283cfa3ffc0d0065ec693306a96c91",
+                "reference": "7795e2ba77283cfa3ffc0d0065ec693306a96c91",
+                "shasum": ""
+            },
+            "require": {
+                "ext-ctype": "*",
+                "ext-mbstring": "*",
+                "php": ">=8.1"
+            },
+            "default-branch": true,
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "yuandian\\Tools\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "yuandian",
+                    "email": "467490186@qq.com"
+                }
+            ],
+            "description": "A component for tools.",
+            "keywords": [
+                "bean",
+                "mapper",
+                "php",
+                "tools"
+            ],
+            "support": {
+                "issues": "https://github.com/yuan-dian/tools/issues",
+                "source": "https://github.com/yuan-dian/tools/tree/master"
+            },
+            "time": "2026-04-30T03:25:23+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "dev",
+    "stability-flags": {
+        "yuandian/tools": 20
+    },
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": ">=8.1",
+        "ext-pdo": "*"
+    },
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
+}
