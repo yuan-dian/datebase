@@ -11,11 +11,22 @@ trait WhereQuery
 {
     public function where(Closure|string|array $field, mixed $operator = null, mixed $value = null): static
     {
+        // 省略运算符：where('id', 1) => where('id', '=', 1)
+        // 仅当 operator 非 null 且 value 为 null 时视为省略；where('id', null) 表示 IS NULL，不受影响
+        if ($operator !== null && $value === null) {
+            $value = $operator;
+            $operator = '=';
+        }
         return $this->parseWhereExp('AND', $field, $operator, $value);
     }
 
     public function orWhere(Closure|string $field, mixed $operator = null, mixed $value = null): static
     {
+        // 省略运算符：orWhere('id', 1) => orWhere('id', '=', 1)
+        if ($operator !== null && $value === null) {
+            $value = $operator;
+            $operator = '=';
+        }
         return $this->parseWhereExp('OR', $field, $operator, $value);
     }
 
@@ -98,9 +109,10 @@ trait WhereQuery
         if ($field instanceof Closure) {
             $sub = $this->newSubQuery();
             $field($sub);
-            $this->options['where'][$logic][] = function ($query) use ($sub) {
-                $query->options['where'] = array_merge(
-                    $query->options['where'] ?? [],
+            // 闭包接收数组引用：Builder 解析时将子条件合并进条件组
+            $this->options['where'][$logic][] = function (array &$subWhere) use ($sub) {
+                $subWhere = array_merge(
+                    $subWhere,
                     $sub->options['where'] ?? []
                 );
             };
@@ -113,12 +125,6 @@ trait WhereQuery
                 $this->where($k, '=', $v);
             }
             return $this;
-        }
-
-        // 省略运算符
-        if (func_num_args() === 3) {
-            $value = $operator;
-            $operator = '=';
         }
 
         // IS NULL

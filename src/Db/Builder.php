@@ -310,6 +310,18 @@ class Builder extends BaseBuilder
 
     protected function parseWhere(array $where, array &$bind): string
     {
+        $whereStr = $this->parseWhereGroup($where, $bind);
+
+        return empty($whereStr) ? '' : ' WHERE ' . $whereStr;
+    }
+
+    /**
+     * 解析条件组，返回不带 WHERE 前缀的条件片段
+     *
+     * 嵌套闭包（子查询条件）递归调用本方法并包裹括号
+     */
+    protected function parseWhereGroup(array $where, array &$bind): string
+    {
         if (empty($where)) {
             return '';
         }
@@ -333,7 +345,8 @@ class Builder extends BaseBuilder
                     $subBind = [];
                     $subWhere = [];
                     $condition($subWhere);
-                    $clause = $this->parseWhere($subWhere, $subBind);
+                    $nested = $this->parseWhereGroup($subWhere, $subBind);
+                    $clause = empty($nested) ? '' : '( ' . $nested . ' )';
                     $bind = array_merge($bind, $subBind);
                 } // Handle array conditions [field, operator, value]
                 elseif (is_array($condition) && count($condition) >= 2) {
@@ -346,6 +359,10 @@ class Builder extends BaseBuilder
                     continue;
                 }
 
+                if (empty($clause)) {
+                    continue;
+                }
+
                 $connector = $logic === 'OR' ? ' OR ' : ' AND ';
                 if (empty($whereStr)) {
                     $whereStr = $clause;
@@ -355,7 +372,7 @@ class Builder extends BaseBuilder
             }
         }
 
-        return empty($whereStr) ? '' : ' WHERE ' . $whereStr;
+        return $whereStr;
     }
 
     protected function parseWhereItem(string $field, string $exp, mixed $value, array &$bind): string

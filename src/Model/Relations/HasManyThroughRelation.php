@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Relations;
 
-use yuandian\Database\Db\Query;
 use yuandian\Database\Model\Model;
 use yuandian\Tools\utils\StrUtil;
 
@@ -35,6 +34,21 @@ class HasManyThroughRelation extends Relation
         $this->throughPk = $throughPk ?? 'id';
     }
 
+    public function getThrough(): string
+    {
+        return $this->through;
+    }
+
+    public function getThroughKey(): string
+    {
+        return $this->throughKey;
+    }
+
+    public function getThroughPk(): string
+    {
+        return $this->throughPk;
+    }
+
     public function getResults(): array
     {
         $localKeyProp = StrUtil::camel($this->localKey);
@@ -45,7 +59,7 @@ class HasManyThroughRelation extends Relation
         }
 
         // Step 1: 查中间表
-        $throughQuery = new Query($this->through);
+        $throughQuery = $this->newQueryFor($this->through);
         $throughModels = $throughQuery
             ->where($this->foreignKey, '=', $localValue)
             ->select();
@@ -54,16 +68,21 @@ class HasManyThroughRelation extends Relation
             return [];
         }
 
-        // Step 2: 收集中间表主键
-        $throughPkProp = StrUtil::camel($this->throughPk);
-        $throughPkVals = [];
+        // Step 2: 收集中间表中指向目标表的列值（throughKey 列的值 = 目标表主键值）
+        $throughKeyProp = StrUtil::camel($this->throughKey);
+        $throughKeyVals = [];
         foreach ($throughModels as $tm) {
-            $throughPkVals[] = $tm->$throughPkProp;
+            $throughKeyVals[] = $tm->$throughKeyProp;
+        }
+        $throughKeyVals = array_values(array_unique($throughKeyVals));
+
+        if (empty($throughKeyVals)) {
+            return [];
         }
 
-        // Step 3: 查最终关联
+        // Step 3: 在目标表按主键 IN 查最终关联
         return $this->newQuery()
-            ->whereIn($this->throughKey, $throughPkVals)
+            ->whereIn($this->related::getPkColumn(), $throughKeyVals)
             ->select();
     }
 }

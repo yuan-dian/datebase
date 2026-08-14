@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Relations;
 
-use yuandian\Database\Db\Query;
 use yuandian\Database\Model\Model;
 use yuandian\Tools\utils\StrUtil;
 
@@ -35,6 +34,21 @@ class HasOneThroughRelation extends Relation
         $this->throughPk = $throughPk ?? 'id';
     }
 
+    public function getThrough(): string
+    {
+        return $this->through;
+    }
+
+    public function getThroughKey(): string
+    {
+        return $this->throughKey;
+    }
+
+    public function getThroughPk(): string
+    {
+        return $this->throughPk;
+    }
+
     public function getResults(): ?Model
     {
         $localKeyProp = StrUtil::camel($this->localKey);
@@ -45,7 +59,7 @@ class HasOneThroughRelation extends Relation
         }
 
         // Step 1: 查中间表
-        $throughQuery = new Query($this->through);
+        $throughQuery = $this->newQueryFor($this->through);
         $throughModel = $throughQuery
             ->where($this->foreignKey, '=', $localValue)
             ->find();
@@ -54,12 +68,16 @@ class HasOneThroughRelation extends Relation
             return null;
         }
 
-        // Step 2: 用中间表主键查最终关联
-        $throughPkProp = StrUtil::camel($this->throughPk);
-        $throughPkVal = $throughModel->$throughPkProp;
+        // Step 2: 用中间表中指向目标表的列值（throughKey 列的值 = 目标表主键值）查最终关联
+        $throughKeyProp = StrUtil::camel($this->throughKey);
+        $throughKeyVal = $throughModel->$throughKeyProp ?? null;
+
+        if ($throughKeyVal === null) {
+            return null;
+        }
 
         return $this->newQuery()
-            ->where($this->throughKey, '=', $throughPkVal)
+            ->where($this->related::getPkColumn(), '=', $throughKeyVal)
             ->find();
     }
 }

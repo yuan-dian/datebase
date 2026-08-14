@@ -184,6 +184,20 @@ abstract class Model
         return $this;
     }
 
+    /**
+     * 批量预加载时写入关联结果（标记已加载并同步到属性）
+     */
+    public function setRelation(string $name, mixed $result): static
+    {
+        $this->loadedRelations[$name] = true;
+
+        if (property_exists($this, $name)) {
+            $this->$name = $result;
+        }
+
+        return $this;
+    }
+
     protected function loadRelation(string $name): mixed
     {
         if (isset($this->loadedRelations[$name])) {

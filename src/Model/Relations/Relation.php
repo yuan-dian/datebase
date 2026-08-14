@@ -52,10 +52,20 @@ abstract class Relation
      */
     public function newQuery(): BaseQuery
     {
-        $connName = $this->related::getConnectionName();
+        return $this->newQueryFor($this->related);
+    }
+
+    /**
+     * 为指定模型类创建 Query 实例（用于中间表等非直接关联模型）
+     *
+     * @param class-string<Model> $modelClass
+     */
+    public function newQueryFor(string $modelClass): BaseQuery
+    {
+        $connName = $modelClass::getConnectionName();
 
         $connection = Db::connect($connName);
 
-        return $connection->newQuery($this->related);
+        return $connection->newQuery($modelClass);
     }
 }
