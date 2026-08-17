@@ -34,7 +34,7 @@ abstract class BaseBuilder
 
     protected string $insertSql = 'INSERT%EXTRA% INTO %TABLE% (%FIELD%) VALUES (%DATA%) %COMMENT%';
 
-    protected string $insertAllSql = 'INSERT%EXTRA% INTO %TABLE% (%FIELD%) %DATA% %COMMENT%';
+    protected string $insertAllSql = 'INSERT%EXTRA% INTO %TABLE% (%FIELD%) VALUES %DATA% %COMMENT%';
 
     protected string $updateSql = 'UPDATE%EXTRA% %TABLE% SET %SET%%JOIN%%WHERE%%ORDER%%LIMIT% %LOCK%%COMMENT%';
 
