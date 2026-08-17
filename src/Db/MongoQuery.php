@@ -10,16 +10,15 @@ use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
 use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connector\Mongo as MongoConnection;
-use yuandian\Database\Model\Model;
 
 class MongoQuery extends BaseQuery
 {
     protected MongoConnection $connection;
     protected MongoBuilder $builder;
 
-    public function __construct(MongoConnection $connection, string $modelClass)
+    public function __construct(MongoConnection $connection, ?string $table = null)
     {
-        parent::__construct($modelClass);
+        parent::__construct($table);
 
         $this->connection = $connection;
         $this->builder = $connection->getBuilder();
@@ -27,7 +26,7 @@ class MongoQuery extends BaseQuery
 
     protected function newSubQuery(): static
     {
-        return new static($this->connection, $this->modelClass);
+        return new static($this->connection, $this->options['table'] ?? null);
     }
 
     public function command(
@@ -405,7 +404,10 @@ class MongoQuery extends BaseQuery
         return $this;
     }
 
-    public function find(): Model|string|null
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function find()
     {
         $this->options['limit'] = 1;
         $filter = $this->builder->buildFilter($this->options);
@@ -420,16 +422,13 @@ class MongoQuery extends BaseQuery
             return null;
         }
 
-        $model = $this->toModel($rows[0]);
-
-        if (!empty($this->options['with'])) {
-            $model->load(...$this->options['with']);
-        }
-
-        return $model;
+        return $rows[0];
     }
 
-    public function select(): array|string
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function select()
     {
         $filter = $this->builder->buildFilter($this->options);
         $sort = $this->builder->buildSort($this->options);
@@ -442,14 +441,7 @@ class MongoQuery extends BaseQuery
             $this->options['offset']
         );
 
-        $rows = $this->connection->find($this->options['table'], $filter, $driverOpts);
-        $models = [];
-
-        foreach ($rows as $row) {
-            $models[] = $this->toModel($row);
-        }
-
-        return $models;
+        return $this->connection->find($this->options['table'], $filter, $driverOpts);
     }
 
     public function insert(array $data): string
@@ -482,17 +474,6 @@ class MongoQuery extends BaseQuery
         $filter = $this->builder->buildFilter($this->options);
 
         return $this->connection->deleteMany($this->options['table'], $filter);
-    }
-
-    protected function toModel(array $row): Model
-    {
-        foreach ($row as $column => $value) {
-            if ($value instanceof \MongoDB\BSON\ObjectID) {
-                $row[$column] = (string)$value;
-            }
-        }
-
-        return parent::toModel($row);
     }
 
     protected function buildDriverOptions(

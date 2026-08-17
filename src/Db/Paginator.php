@@ -22,6 +22,8 @@ use yuandian\Database\Model\Model;
  *
  * 实现 JsonSerializable / ArrayAccess / Countable / IteratorAggregate，
  * 可直接 json_encode / foreach / count / 数组下标访问。
+ *
+ * @template TItem 当前页元素类型（Db 层为数组，Model 层为模型实例）
  */
 class Paginator implements JsonSerializable, ArrayAccess, Countable, IteratorAggregate
 {
@@ -33,7 +35,7 @@ class Paginator implements JsonSerializable, ArrayAccess, Countable, IteratorAgg
     protected static Closure $maker;
 
     /**
-     * @param array $items 当前页数据
+     * @param TItem[] $items 当前页数据
      * @param int $total 总记录数（简单模式为 0）
      * @param int $pageSize 每页条数
      * @param int $currentPage 当前页码
@@ -75,7 +77,7 @@ class Paginator implements JsonSerializable, ArrayAccess, Countable, IteratorAgg
     /**
      * 当前页数据
      *
-     * @return Model[]
+     * @return TItem[]
      */
     public function items(): array
     {

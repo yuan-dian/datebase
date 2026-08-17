@@ -18,22 +18,6 @@ interface ConnectionInterface
 
     public function close();
 
-    public function find(BaseQuery $query): array;
-
-    public function select(BaseQuery $query): array;
-
-    public function insert(BaseQuery $query, bool $getLastInsID = false);
-
-    public function insertAll(BaseQuery $query, array $dataSet = []): int;
-
-    public function update(BaseQuery $query): int;
-
-    public function delete(BaseQuery $query): int;
-
-    public function value(BaseQuery $query, string $field, $default = null);
-
-    public function column(BaseQuery $query, string|array $column, string $key = ''): array;
-
     public function transaction(callable $callback): mixed;
 
     public function startTrans(): void;

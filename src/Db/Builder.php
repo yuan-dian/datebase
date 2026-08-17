@@ -399,7 +399,7 @@ class Builder extends BaseBuilder
         }
 
         if ($value instanceof Closure) {
-            $subQuery = new Query($this->connection, '');
+            $subQuery = $this->connection->table();
             $value($subQuery);
             $subSql = $this->select($subQuery->getOptions());
             return $key . ' ' . $exp . ' ' . $subSql[0];
@@ -493,7 +493,7 @@ class Builder extends BaseBuilder
         }
 
         if ($value instanceof Closure) {
-            $subQuery = new Query($this->connection, '');
+            $subQuery = $this->connection->table();
             $value($subQuery);
             $subSql = $this->select($subQuery->getOptions());
             return $exp . ' ( ' . $subSql[0] . ' )';

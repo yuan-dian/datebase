@@ -7,21 +7,16 @@ namespace yuandian\Database\Db;
 use yuandian\Database\Db\Concern\AggregateQuery;
 use yuandian\Database\Db\Concern\ParamsBind;
 use yuandian\Database\Db\Concern\WhereQuery;
-use yuandian\Database\Model\Model;
-use yuandian\Tools\utils\StrUtil;
+use yuandian\Database\Exceptions\DbException;
 
 /**
  * 查询基类
- * @template TModel of Model
  */
 abstract class BaseQuery
 {
     use WhereQuery;
     use AggregateQuery;
     use ParamsBind;
-
-    /** @var class-string<TModel> */
-    protected string $modelClass;
 
     protected array $options = [
         'table'  => '',
@@ -46,12 +41,23 @@ abstract class BaseQuery
     protected array $removedScopes = [];
 
     /**
-     * @param class-string<TModel> $modelClass
+     * @param string|null $table 数据表名；null 时需后续调用 table() 指定
      */
-    public function __construct(string $modelClass)
+    public function __construct(?string $table = null)
     {
-        $this->modelClass = $modelClass;
-        $this->options['table'] = $this->modelClass::getTableName();
+        if ($table !== null) {
+            $this->options['table'] = $table;
+        }
+    }
+
+    /**
+     * 确保已指定数据表
+     */
+    protected function ensureTable(): void
+    {
+        if (empty($this->options['table'])) {
+            throw new DbException('查询未指定数据表，请先调用 table()');
+        }
     }
 
     /**
@@ -75,16 +81,22 @@ abstract class BaseQuery
     abstract protected function newSubQuery(): static;
 
     // ------- 终端方法 -------
+    // 说明：find/select 不声明 PHP 返回类型（仅 docblock）。
+    // 子类可自由收窄：Db 层返回数组，Model 层返回模型（Model 与 array 不协变，父类声明类型将无法收窄）。
 
     /**
-     * @return TModel|string|null
+     * 查询单条记录
+     *
+     * @return array<string, mixed>|string|null 行数据；fetchSql 模式返回 SQL
      */
-    abstract public function find(): Model|string|null;
+    abstract public function find();
 
     /**
-     * @return TModel[]|string
+     * 查询多条记录
+     *
+     * @return list<array<string, mixed>>|string 行数据数组；fetchSql 模式返回 SQL
      */
-    abstract public function select(): array|string;
+    abstract public function select();
 
     /**
      * @return int|string  SQL 返回自增 ID（int），MongoDB 返回 ObjectId（string）
@@ -256,14 +268,6 @@ abstract class BaseQuery
         return $this;
     }
 
-    // ======================== 链式方法 — 关联预加载 ========================
-
-    public function with(string ...$relations): static
-    {
-        $this->options['with'] = array_merge($this->options['with'], $relations);
-        return $this;
-    }
-
     // ======================== 链式方法 — JOIN / GROUP / HAVING ========================
 
     public function join(string $table, string $condition, string $type = 'INNER'): static
@@ -310,67 +314,9 @@ abstract class BaseQuery
 
     // ======================== 公共工具 ========================
 
-    /**
-     * 行数据 → 模型实例（基础实现）
-     *
-     * MongoDB 子类可覆写处理 ObjectId 等 BSON 类型
-     */
-    /**
-     * @return TModel|Model|null
-     * @date 2026/5/7 上午11:07
-     * @author 原点 467490186@qq.com
-     */
-    protected function toModel(array $row): Model
-    {
-        /** @var TModel $model */
-        $model = new $this->modelClass();
-        $model->setExists(true);
-
-        $columnMap = $model::getColumnMap();
-        $reverseMap = array_flip($columnMap);
-        $jsonColumns = $model::getJsonColumns();
-
-        foreach ($row as $column => $value) {
-            $propName = $reverseMap[$column] ?? StrUtil::camel($column);
-            if (property_exists($model, $propName)) {
-                // JSON 列：先反序列化再赋值
-                if (array_key_exists($propName, $jsonColumns)) {
-                    $value = $model::castFromJson($value, $jsonColumns[$propName]);
-                }
-
-                // NULL 跳过赋值：保留属性默认值，避免向非可空属性塞 null（TypePHP 类型不可变）
-                if ($value !== null) {
-                    $model->$propName = $value;
-                }
-            }
-        }
-
-        // 填充原始数据快照（dirty 检测基准）：存属性回读值（类型已由属性声明转换），
-        // JSON 列编码为字符串，与 getDirtyData 的比较基准保持一致
-        $original = [];
-        foreach ($columnMap as $prop => $column) {
-            if (!property_exists($model, $prop) || !isset($model->$prop)) {
-                continue;
-            }
-            $value = $model->$prop;
-            if (array_key_exists($prop, $jsonColumns)) {
-                $value = $model::castToJson($value);
-            }
-            $original[$column] = $value;
-        }
-        $model->setOriginal($original);
-
-        return $model;
-    }
-
     public function getOptions(): array
     {
         return $this->options;
-    }
-
-    public function getModelClass(): string
-    {
-        return $this->modelClass;
     }
 
     /**
@@ -449,6 +395,10 @@ abstract class BaseQuery
         ?int $page = null,
         string $pageName = 'page'
     ): Paginator {
+        if (!empty($this->options['fetch_sql'])) {
+            throw new DbException('fetchSql 模式不支持分页');
+        }
+
         $currentPage = $this->getCurrentPage($page, $pageName);
 
         if ($simple) {

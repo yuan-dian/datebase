@@ -15,6 +15,7 @@ use yuandian\Database\Attribute\SoftDelete;
 use yuandian\Database\Attribute\Table;
 use yuandian\Database\Attribute\TableId;
 use yuandian\Database\Db\BaseQuery;
+use yuandian\Database\Db\Connector\Mongo;
 use yuandian\Database\Enums\IdType;
 use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Facade\DB;
@@ -31,7 +32,7 @@ use yuandian\Tools\utils\UUIDUtil;
 
 /**
  * Class Model 模型基类
- * @mixin BaseQuery<static>
+ * @mixin ModelQuery<static>
  * @method static static find()
  * @method static static[] select()
  */
@@ -68,15 +69,28 @@ abstract class Model
     }
 
     /**
-     * @return BaseQuery<static>
+     * @return ModelQuery<static>|MongoModelQuery<static>
      */
     public function newQuery(): BaseQuery
     {
-        $connName = static::getConnectionName();
+        return static::newQueryForClass(static::class);
+    }
 
-        $connection = Db::connect($connName);
+    /**
+     * 为指定模型类创建模型查询实例
+     *
+     * @param class-string<Model> $class
+     * @return BaseQuery
+     */
+    public static function newQueryForClass(string $class): BaseQuery
+    {
+        $connection = Db::connect($class::getConnectionName());
 
-        return $connection->newQuery(static::class);
+        if ($connection instanceof Mongo) {
+            return new MongoModelQuery($connection, $class);
+        }
+
+        return new ModelQuery($connection, $class);
     }
 
     // ===================== CRUD =====================
@@ -213,6 +227,11 @@ abstract class Model
         return $type === null || $type->allowsNull();
     }
 
+    /**
+     * 加载关联结果
+     *
+     * @return Model|array|null 关联结果（Model[] 为 HasMany 系列；Model 为 HasOne 系列）
+     */
     protected function loadRelation(string $name): mixed
     {
         if (isset($this->loadedRelations[$name])) {
@@ -648,45 +667,5 @@ abstract class Model
         $isList = array_is_list($value) && is_array($value[0]);
 
         return $isList ? BeanUtil::arrayToObjectList($value, $castTo) : BeanUtil::arrayToObject($value, $castTo);
-    }
-
-    protected function toModel(array $row): Model
-    {
-        $model = new static();
-        $model->setExists(true);
-        $columnMap = static::getColumnMap();
-        $reverseMap = array_flip($columnMap);
-        $jsonColumns = static::getJsonColumns();
-
-        foreach ($row as $column => $value) {
-            $propName = $reverseMap[$column] ?? StrUtil::camel($column);
-            if (property_exists($model, $propName)) {
-                // JSON 列：先反序列化再赋值
-                if (array_key_exists($propName, $jsonColumns)) {
-                    $value = $model::castFromJson($value, $jsonColumns[$propName]);
-                }
-
-                // NULL 跳过赋值：保留属性默认值，避免向非可空属性塞 null（TypePHP 类型不可变）
-                if ($value !== null) {
-                    $model->$propName = $value;
-                }
-            }
-        }
-
-        // 填充原始数据快照（dirty 检测基准）：与 BaseQuery::toModel 保持一致
-        $original = [];
-        foreach ($columnMap as $prop => $column) {
-            if (!property_exists($model, $prop) || !isset($model->$prop)) {
-                continue;
-            }
-            $value = $model->$prop;
-            if (array_key_exists($prop, $jsonColumns)) {
-                $value = $model::castToJson($value);
-            }
-            $original[$column] = $value;
-        }
-        $model->setOriginal($original);
-
-        return $model;
     }
 }

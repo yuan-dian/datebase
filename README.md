@@ -24,6 +24,7 @@
     - [查询](#查询)
     - [修改](#修改)
     - [删除](#删除)
+- [Db 层独立使用](#db-层独立使用query-builder)
 - [链式操作](#链式操作)
     - [WHERE 条件](#where-条件)
     - [字段选择](#字段选择)
@@ -228,6 +229,38 @@ $user->delete();
 // 通过查询删除
 User::where('id', 1)->delete();
 ```
+
+## Db 层独立使用（Query Builder）
+
+Db 层与模型层分层设计：**Db 层仅依赖数据表名，返回原生数组，不感知模型**；模型层是 Db 层的包装，负责水合（行转模型）、软删除、全局作用域与关联预加载。不使用模型时，可直接通过 `DB::table()` 操作数据表：
+
+```php
+use yuandian\Database\Facade\DB;
+
+// 查询单条（返回原生数组或 null）
+$row = DB::table('share_base')->where('share_id', '=', 2047600338951996096)->find();
+echo $row['share_name'];
+
+// 查询多条（返回数组列表）
+$rows = DB::table('share_base')->where('user_id', '>', 0)->limit(10)->select();
+
+// 聚合
+$count = DB::table('share_base')->count();
+$max   = DB::table('share_base')->max('share_id');
+
+// 写入
+DB::table('share_base')->insert(['share_name' => 'xxx']);
+DB::table('share_base')->where('share_id', 1)->update(['share_name' => 'yyy']);
+DB::table('share_base')->where('share_id', 1)->delete();
+```
+
+未指定表名时（`DB::table()` 不带参数返回空查询器），所有终端方法会抛出 `DbException`：
+
+```php
+DB::table()->where('id', 1)->find(); // 抛出 DbException：查询未指定数据表，请先调用 table()
+```
+
+**模型路径**（`User::where(...)`）内部走 `ModelQuery`，与 Db 层共享同一套查询构建、SQL 生成与执行链路，仅在结果返回时多一步水合。
 
 ## 链式操作
 

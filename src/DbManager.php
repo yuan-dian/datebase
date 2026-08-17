@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database;
 
+use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Db\Connection;
 use yuandian\Database\Db\Connector\Mongo;
 use yuandian\Database\Db\Connector\Mysql;
@@ -75,6 +76,14 @@ class DbManager
     public function connect(string|array|null $name = null, bool $force = false): Connection
     {
         return $this->getConnection($name, $force);
+    }
+
+    /**
+     * 便捷入口：直接按表名创建 Db 层查询实例
+     */
+    public function table(string $table): BaseQuery
+    {
+        return $this->connect()->table($table);
     }
 
     // ===================== 连接 =====================

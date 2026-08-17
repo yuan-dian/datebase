@@ -18,12 +18,12 @@ trait AggregateQuery
         return (float)$this->aggregate('SUM', $field);
     }
 
-    public function min(string $field): mixed
+    public function min(string $field): string|int|float|null
     {
         return $this->aggregate('MIN', $field);
     }
 
-    public function max(string $field): mixed
+    public function max(string $field): string|int|float|null
     {
         return $this->aggregate('MAX', $field);
     }
@@ -33,7 +33,7 @@ trait AggregateQuery
         return (float)$this->aggregate('AVG', $field);
     }
 
-    protected function aggregate(string $fn, string $field): mixed
+    protected function aggregate(string $fn, string $field): string|int|float|null
     {
         $this->applyGlobalScopes();
 
@@ -58,7 +58,9 @@ trait AggregateQuery
             $bind = array_merge($bind, $this->bind);
         }
 
-        $rows = $this->getConnection()->query($sql, $bind);
+        /** @var \yuandian\Database\Db\PDOConnection $connection 聚合仅在 PDO 连接上执行（Mongo 走覆写路径） */
+        $connection = $this->getConnection();
+        $rows = $connection->query($sql, $bind);
 
         return $rows[0]['__agg'] ?? null;
     }

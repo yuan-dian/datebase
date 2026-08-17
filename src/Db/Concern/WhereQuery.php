@@ -54,7 +54,7 @@ trait WhereQuery
         return $this;
     }
 
-    public function whereBetween(string $field, mixed $min, mixed $max): static
+    public function whereBetween(string $field, string|int|float $min, string|int|float $max): static
     {
         $this->options['where']['AND'][] = [$field, 'BETWEEN', [$min, $max]];
         return $this;

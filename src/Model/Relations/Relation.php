@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace yuandian\Database\Model\Relations;
 
 use yuandian\Database\Db\BaseQuery;
-use yuandian\Database\Facade\DB;
 use yuandian\Database\Model\Model;
+use yuandian\Database\Model\ModelQuery;
+use yuandian\Database\Model\MongoModelQuery;
 
 abstract class Relation
 {
@@ -49,6 +50,8 @@ abstract class Relation
 
     /**
      * 创建关联查询的 Query 实例
+     *
+     * @return ModelQuery|MongoModelQuery
      */
     public function newQuery(): BaseQuery
     {
@@ -59,13 +62,10 @@ abstract class Relation
      * 为指定模型类创建 Query 实例（用于中间表等非直接关联模型）
      *
      * @param class-string<Model> $modelClass
+     * @return ModelQuery|MongoModelQuery
      */
     public function newQueryFor(string $modelClass): BaseQuery
     {
-        $connName = $modelClass::getConnectionName();
-
-        $connection = Db::connect($connName);
-
-        return $connection->newQuery($modelClass);
+        return Model::newQueryForClass($modelClass);
     }
 }

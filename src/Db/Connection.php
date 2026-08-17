@@ -77,15 +77,16 @@ abstract class Connection implements ConnectionInterface
     }
 
     /**
-     * 创建查询实例
-     * @param class-string<TModel> $modelClass
-     * @return BaseQuery<TModel>
-     * @date 2026/5/7 下午2:07
-     * @author 原点 467490186@qq.com
+     * 创建 Db 层查询实例
+     *
+     * @param string|null $table 数据表名
+     * @return BaseQuery
      */
-    public function newQuery(string $modelClass): BaseQuery
+    public function table(?string $table = null): BaseQuery
     {
-        return new Query($this, $modelClass);
+        $queryClass = $this->getQueryClass();
+
+        return new $queryClass($this, $table);
     }
 
     // ======================== 配置 ========================
@@ -108,22 +109,6 @@ abstract class Connection implements ConnectionInterface
     abstract public function getQueryClass(): string;
 
     abstract public function getBuilderClass(): string;
-
-    abstract public function find(BaseQuery $query): array;
-
-    abstract public function select(BaseQuery $query): array;
-
-    abstract public function insert(BaseQuery $query, bool $getLastInsID = false);
-
-    abstract public function insertAll(BaseQuery $query, array $dataSet = []): int;
-
-    abstract public function update(BaseQuery $query): int;
-
-    abstract public function delete(BaseQuery $query): int;
-
-    abstract public function value(BaseQuery $query, string $field, $default = null);
-
-    abstract public function column(BaseQuery $query, string|array $column, string $key = ''): array;
 
     abstract public function getLastInsID(BaseQuery $query, ?string $sequence = null);
 }
