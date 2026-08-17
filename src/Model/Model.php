@@ -223,8 +223,7 @@ abstract class Model
      */
     protected function isNullableProperty(string $name): bool
     {
-        $type = (new \ReflectionProperty($this, $name))->getType();
-        return $type === null || $type->allowsNull();
+        return self::getMeta()['nullable'][$name] ?? false;
     }
 
     /**
@@ -312,7 +311,8 @@ abstract class Model
         // Fields, primary key, id type, relations
         $fields = [];       // [propertyName => columnName]
         $relations = [];    // [propertyName => relationDef]
-        $jsonColumns = [];         // [propertyName => castTo|null]
+        $jsonColumns = [];  // [propertyName => castTo|null]
+        $nullable = [];     // ['propertyName' => bool]
 
         foreach ($reflection->getPublicProperties() as $prop) {
             $propName = $prop->getName();
@@ -321,6 +321,13 @@ abstract class Model
             if (str_starts_with($propName, '_')) {
                 continue;
             }
+            // 判断属性是否可以为null
+            $type = $prop->getType();
+            if ($type === null || $type->allowsNull()) {
+                $nullable[$propName] = true;
+            }
+
+
             $columnName = StrUtil::snake($propName);
             $fields[$propName] = $columnName;
 
@@ -354,6 +361,7 @@ abstract class Model
             'pkType'        => $pkType,
             'relations'     => $relations,
             'jsonColumns'   => $jsonColumns,
+            'nullable'      => $nullable,
         ];
     }
 

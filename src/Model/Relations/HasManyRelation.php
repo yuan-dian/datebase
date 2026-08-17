@@ -15,8 +15,6 @@ class HasManyRelation extends Relation
         ?string $foreignKey = null,
         ?string $localKey = null
     ) {
-        $ref = new \ReflectionClass($parent);
-
         parent::__construct(
             $parent,
             $related,
