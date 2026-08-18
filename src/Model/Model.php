@@ -166,8 +166,8 @@ abstract class Model
 
         foreach ($columnMap as $prop => $column) {
             // 仅丢弃 null 与未初始化属性；空数组 []、0、'' 均保留（?? 对 uninitialized typed property 不抛错）
-            if (property_exists($this, $prop) && ($this->$prop ?? null) !== null) {
-                $data[$column] = $this->$prop;
+            if (($this->$prop ?? null) !== null) {
+                $data[$prop] = $this->$prop;
             }
         }
 
@@ -593,7 +593,7 @@ abstract class Model
         $jsonColumns = static::getJsonColumns();
 
         foreach ($columnMap as $prop => $column) {
-            if (!property_exists($this, $prop) || !isset($this->$prop)) {
+            if (!isset($this->$prop)) {
                 continue;
             }
 
@@ -675,5 +675,10 @@ abstract class Model
         $isList = array_is_list($value) && is_array($value[0]);
 
         return $isList ? BeanUtil::arrayToObjectList($value, $castTo) : BeanUtil::arrayToObject($value, $castTo);
+    }
+
+    public function __debugInfo(): array
+    {
+        return $this->toArray();
     }
 }

@@ -34,17 +34,22 @@ trait HydratesModels
         $jsonColumns = $model::getJsonColumns();
 
         foreach ($row as $column => $value) {
-            $propName = $reverseMap[$column] ?? StrUtil::camel($column);
-            if (property_exists($model, $propName)) {
-                // JSON 列：先反序列化再赋值
-                if (array_key_exists($propName, $jsonColumns)) {
-                    $value = $model::castFromJson($value, $jsonColumns[$propName]);
+            $propName = $reverseMap[$column] ?? null;
+            // 未命中映射：DB 新增列（不在模型 columnMap 中），camel 兜底并校验属性存在
+            if ($propName === null) {
+                $propName = StrUtil::camel($column);
+                if (!property_exists($model, $propName)) {
+                    continue;
                 }
+            }
+            // JSON 列：先反序列化再赋值
+            if (array_key_exists($propName, $jsonColumns)) {
+                $value = $model::castFromJson($value, $jsonColumns[$propName]);
+            }
 
-                // NULL 跳过赋值：保留属性默认值，避免向非可空属性塞 null（TypePHP 类型不可变）
-                if ($value !== null) {
-                    $model->$propName = $value;
-                }
+            // NULL 跳过赋值：保留属性默认值，避免向非可空属性塞 null（TypePHP 类型不可变）
+            if ($value !== null) {
+                $model->$propName = $value;
             }
         }
 
@@ -52,7 +57,7 @@ trait HydratesModels
         // JSON 列编码为字符串，与 getDirtyData 的比较基准保持一致
         $original = [];
         foreach ($columnMap as $prop => $column) {
-            if (!property_exists($model, $prop) || !isset($model->$prop)) {
+            if (!isset($model->$prop)) {
                 continue;
             }
             $value = $model->$prop;

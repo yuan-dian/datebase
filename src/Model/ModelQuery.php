@@ -30,6 +30,10 @@ class ModelQuery extends Query
     /** @var bool 全局作用域是否已应用 */
     protected bool $scopesApplied = false;
 
+    /**
+     * @param Connection $connection
+     * @param class-string<TModel> $modelClass
+     */
     public function __construct(Connection $connection, string $modelClass)
     {
         parent::__construct($connection, $modelClass::getTableName());
@@ -48,7 +52,7 @@ class ModelQuery extends Query
     }
 
     /**
-     * @return TModel|string|null
+     * @return Model|string|null
      */
     public function find(): Model|string|null
     {
