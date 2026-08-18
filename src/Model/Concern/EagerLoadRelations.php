@@ -38,6 +38,9 @@ trait EagerLoadRelations
      * 按关系类型分组收集所有模型的 localKey 值，一次 WHERE IN 查出全部关联模型，
      * 再按 foreignKey 值分组分配回各模型。
      *
+     * 支持点号嵌套：with('a.b') 先批量加载 a，再从 a 的批内实例递归批量加载 b，
+     * 任意深度（a.b.c）均可；'a' 与 'a.b' 同时出现时 a 只加载一次。
+     *
      * @param Model[] $models
      * @param string[] $relations
      */
@@ -49,7 +52,22 @@ trait EagerLoadRelations
 
         $first = $models[0];
 
+        // 第一遍：拆分点号，收集平铺关系名（去重）与嵌套映射
+        $flatNames = [];
+        $nestedMap = [];
         foreach ($relations as $name) {
+            if (str_contains($name, '.')) {
+                [$parent, $nested] = explode('.', $name, 2);
+                $flatNames[$parent] = true;
+                $nestedMap[$parent][] = $nested;
+            } else {
+                $flatNames[$name] = true;
+            }
+        }
+
+        // 第二遍：批量加载所有平铺关系，收集加载出的关联模型实例（供嵌套递归）
+        $loadedInstances = [];
+        foreach (array_keys($flatNames) as $name) {
             $info = $first::getRelationInfo($name);
             if (!$info) {
                 continue;
@@ -58,19 +76,20 @@ trait EagerLoadRelations
             /** @var HasOne|HasMany|HasOneThrough|HasManyThrough $attr */
             $attr = $info['attribute'];
 
-            switch ($info['type']) {
-                case 'HasOne':
-                    $this->eagerLoadHasOne($models, $name, $attr);
-                    break;
-                case 'HasMany':
-                    $this->eagerLoadHasMany($models, $name, $attr);
-                    break;
-                case 'HasOneThrough':
-                    $this->eagerLoadHasOneThrough($models, $name, $attr);
-                    break;
-                case 'HasManyThrough':
-                    $this->eagerLoadHasManyThrough($models, $name, $attr);
-                    break;
+            $loadedInstances[$name] = match ($info['type']) {
+                'HasOne' => $this->eagerLoadHasOne($models, $name, $attr),
+                'HasMany' => $this->eagerLoadHasMany($models, $name, $attr),
+                'HasOneThrough' => $this->eagerLoadHasOneThrough($models, $name, $attr),
+                'HasManyThrough' => $this->eagerLoadHasManyThrough($models, $name, $attr),
+                default => [],
+            };
+        }
+
+        // 第三遍：对每层父关系的全部实例递归预加载嵌套关系
+        foreach ($nestedMap as $parent => $nested) {
+            $instances = $loadedInstances[$parent] ?? [];
+            if (!empty($instances)) {
+                $this->eagerLoadRelations($instances, array_values(array_unique($nested)));
             }
         }
     }
@@ -79,26 +98,35 @@ trait EagerLoadRelations
      * 批量加载 HasOne：按 localKey 值分组，每组取第一条
      *
      * @param Model[] $models
+     * @return Model[] 加载出的关联模型实例（供嵌套递归）
      */
-    protected function eagerLoadHasOne(array $models, string $name, HasOne $attr): void
+    protected function eagerLoadHasOne(array $models, string $name, HasOne $attr): array
     {
         $relation = new HasOneRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey);
 
         $grouped = $this->batchLoadGrouped($models, $relation, $name);
 
         $localKeyProp = StrUtil::camel($relation->getLocalKey());
+        $instances = [];
         foreach ($models as $model) {
             $localValue = $model->$localKeyProp ?? null;
-            $model->setRelation($name, $grouped[$localValue][0] ?? null);
+            $result = $grouped[$localValue][0] ?? null;
+            $model->setRelation($name, $result);
+            if ($result !== null) {
+                $instances[] = $result;
+            }
         }
+
+        return $instances;
     }
 
     /**
      * 批量加载 HasMany：按 localKey 值分组，整组赋值
      *
      * @param Model[] $models
+     * @return Model[] 加载出的关联模型实例（供嵌套递归）
      */
-    protected function eagerLoadHasMany(array $models, string $name, HasMany $attr): void
+    protected function eagerLoadHasMany(array $models, string $name, HasMany $attr): array
     {
         $relation = new HasManyRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey);
 
@@ -109,30 +137,48 @@ trait EagerLoadRelations
             $localValue = $model->$localKeyProp ?? null;
             $model->setRelation($name, $grouped[$localValue] ?? []);
         }
+
+        $instances = [];
+        foreach ($grouped as $items) {
+            foreach ($items as $item) {
+                $instances[] = $item;
+            }
+        }
+
+        return $instances;
     }
 
     /**
      * 批量加载 HasOneThrough：两段查询后按 throughPk 关联，每组取第一条
      *
      * @param Model[] $models
+     * @return Model[] 加载出的关联模型实例（供嵌套递归）
      */
-    protected function eagerLoadHasOneThrough(array $models, string $name, HasOneThrough $attr): void
+    protected function eagerLoadHasOneThrough(array $models, string $name, HasOneThrough $attr): array
     {
         $grouped = $this->batchLoadThroughGrouped($models, $name, $attr);
 
         $localKeyProp = StrUtil::camel($attr->localKey ?: $models[0]::getPkColumn());
+        $instances = [];
         foreach ($models as $model) {
             $localValue = $model->$localKeyProp ?? null;
-            $model->setRelation($name, $grouped[$localValue][0] ?? null);
+            $result = $grouped[$localValue][0] ?? null;
+            $model->setRelation($name, $result);
+            if ($result !== null) {
+                $instances[] = $result;
+            }
         }
+
+        return $instances;
     }
 
     /**
      * 批量加载 HasManyThrough：两段查询后按 throughPk 关联，整组赋值
      *
      * @param Model[] $models
+     * @return Model[] 加载出的关联模型实例（供嵌套递归）
      */
-    protected function eagerLoadHasManyThrough(array $models, string $name, HasManyThrough $attr): void
+    protected function eagerLoadHasManyThrough(array $models, string $name, HasManyThrough $attr): array
     {
         $grouped = $this->batchLoadThroughGrouped($models, $name, $attr);
 
@@ -141,6 +187,15 @@ trait EagerLoadRelations
             $localValue = $model->$localKeyProp ?? null;
             $model->setRelation($name, $grouped[$localValue] ?? []);
         }
+
+        $instances = [];
+        foreach ($grouped as $items) {
+            foreach ($items as $item) {
+                $instances[] = $item;
+            }
+        }
+
+        return $instances;
     }
 
     /**
