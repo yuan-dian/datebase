@@ -40,19 +40,18 @@ class Query extends BaseQuery
     /**
      * 查询单条记录
      *
-     * @return array<string, mixed>|string|null 行数据；fetchSql 模式返回 SQL
+     * 返回类型取公共上界 array|object|null（PHP 协变）：Db 层实际返回数组行；
+     * Model 层子类（ModelQuery）收窄为 ?Model，父类声明 ?array 将锁死该收窄。
+     *
+     * @return array<string, mixed>|object|null 行数据
      */
-    public function find()
+    public function find(): array|object|null
     {
         $this->ensureTable();
         $this->options['limit'] = 1;
         $this->applyGlobalScopes();
 
         [$sql, $bind] = $this->builder->select($this->options);
-
-        if (!empty($this->options['fetch_sql'])) {
-            return $sql;
-        }
 
         $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
 
@@ -62,18 +61,14 @@ class Query extends BaseQuery
     /**
      * 查询多条记录
      *
-     * @return list<array<string, mixed>>|string 行数据数组；fetchSql 模式返回 SQL
+     * @return list<array<string, mixed>> 行数据数组
      */
-    public function select()
+    public function select(): array
     {
         $this->ensureTable();
         $this->applyGlobalScopes();
 
         [$sql, $bind] = $this->builder->select($this->options);
-
-        if (!empty($this->options['fetch_sql'])) {
-            return $sql;
-        }
 
         return $this->connection->query($sql, array_merge($bind, $this->bind));
     }
@@ -96,10 +91,6 @@ class Query extends BaseQuery
 
         [$sql, $bind] = $this->builder->select($opts);
 
-        if (!empty($this->options['fetch_sql'])) {
-            return $sql;
-        }
-
         $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
 
         if (empty($rows)) {
@@ -114,9 +105,9 @@ class Query extends BaseQuery
      *
      * @param string $field 字段名
      * @param string $key 以该字段的值作为数组键
-     * @return array|string 列数据数组；fetchSql 模式返回 SQL
+     * @return array 列数据数组
      */
-    public function column(string $field, string $key = ''): array|string
+    public function column(string $field, string $key = ''): array
     {
         $this->ensureTable();
         $this->applyGlobalScopes();
@@ -125,10 +116,6 @@ class Query extends BaseQuery
         $opts['field'] = [$field];
 
         [$sql, $bind] = $this->builder->select($opts);
-
-        if (!empty($this->options['fetch_sql'])) {
-            return $sql;
-        }
 
         $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
 
@@ -152,10 +139,6 @@ class Query extends BaseQuery
     {
         $this->ensureTable();
         $this->applyGlobalScopes();
-
-        if (!empty($this->options['fetch_sql'])) {
-            throw new DbException('fetchSql 模式不支持游标');
-        }
 
         [$sql, $bind] = $this->builder->select($this->options);
         $stmt = $this->connection->getPdo()->prepare($sql);
@@ -234,6 +217,21 @@ class Query extends BaseQuery
         );
 
         return $this->connection->execute($sql, array_merge($bind, $this->bind));
+    }
+
+    /**
+     * 构建当前查询的 SQL 而不执行
+     *
+     * @param bool $sub 是否包裹括号（用于子查询嵌入场景）
+     */
+    public function buildSql(bool $sub = false): string
+    {
+        $this->ensureTable();
+        $this->applyGlobalScopes();
+
+        [$sql] = $this->builder->select($this->options);
+
+        return $sub ? '( ' . $sql . ' )' : $sql;
     }
 
     /**

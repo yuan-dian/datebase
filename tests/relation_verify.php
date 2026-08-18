@@ -174,11 +174,11 @@ check($dbRow['share_id'] == $shareId, 'Db 层值正确');
 $dbFiles = DB::table('share_file')->where('share_id', '=', $shareId)->select();
 check(is_array($dbFiles) && count($dbFiles) === count($fileIds), 'Db 层关联数据量一致');
 
-// ---------- fetchSql 含关联 ----------
-echo "\n== fetchSql + with ==\n";
+// ---------- buildSql 含关联 ----------
+echo "\n== buildSql + with ==\n";
 
-$sql = RelationShareBase::with('shareFiles')->fetchSql()->select();
-check(is_string($sql) && str_contains($sql, 'FROM'), 'fetchSql+with 返回 SQL 字符串');
+$sql = RelationShareBase::with('shareFiles')->buildSql();
+check(is_string($sql) && str_contains($sql, 'FROM'), 'buildSql+with 返回 SQL 字符串');
 
 // ---------- 字段名 camel→snake 自动转换 ----------
 echo "\n== 字段名 camel→snake 自动转换 ==\n";
@@ -198,11 +198,11 @@ check(is_int($nullCount), 'whereNull(属性名 userId) 自动转列名');
 $likeRows = RelationShareBase::whereLike('shareCode', $share->shareCode)->select();
 check(count($likeRows) >= 1, 'whereLike(属性名 shareCode) 自动转列名');
 
-$camelCol = RelationShareBase::whereColumn('shareCode', '=', 'shareName')->fetchSql()->select();
+$camelCol = RelationShareBase::whereColumn('shareCode', '=', 'shareName')->buildSql();
 check(str_contains($camelCol, 'share_code') && str_contains($camelCol, 'share_name'), 'whereColumn 双字段均转换');
 
 // 限定名 table.column 只转列段
-$qualSql = RelationShareBase::where('share_base.shareId', '=', $shareId)->fetchSql()->select();
+$qualSql = RelationShareBase::where('share_base.shareId', '=', $shareId)->buildSql();
 check(str_contains($qualSql, 'share_base`.`share_id'), '限定名只转列段 (share_base.shareId -> share_id)');
 
 // 未声明属性名原样返回（非 camelCase 的任意字段名照常可用）
@@ -210,24 +210,24 @@ $rawField = DB::table('share_base')->where('share_name', '=', $share->shareName)
 check(is_array($rawField), 'Db 层列名查询不受影响（钩子默认原样）');
 
 // Db 层不转换 camelCase（契约隔离：DB::table 返回纯 Query，不感知模型属性名）
-$dbCamel = DB::table('share_base')->where('shareId', '=', $shareId)->fetchSql()->select();
+$dbCamel = DB::table('share_base')->where('shareId', '=', $shareId)->buildSql();
 check(str_contains($dbCamel, '`shareId`') && !str_contains($dbCamel, 'share_id'), 'Db 层 camelCase 不转换（契约隔离）');
 
 // order/groupBy/field 属性名自动转换
-$orderSql = RelationShareBase::where('share_id', '>', 0)->order('shareId', 'desc')->fetchSql()->select();
+$orderSql = RelationShareBase::where('share_id', '>', 0)->order('shareId', 'desc')->buildSql();
 check(str_contains($orderSql, 'ORDER BY `share_id` DESC'), 'order(属性名 shareId) 自动转列名');
 
-$groupSql = RelationShareBase::where('share_id', '>', 0)->groupBy('shareId')->fetchSql()->select();
+$groupSql = RelationShareBase::where('share_id', '>', 0)->groupBy('shareId')->buildSql();
 check(str_contains($groupSql, 'GROUP BY `share_id`'), 'groupBy(属性名 shareId) 自动转列名');
 
-$fieldSql = RelationShareBase::where('share_id', '>', 0)->field(['shareName', 'shareCode'])->fetchSql()->select();
+$fieldSql = RelationShareBase::where('share_id', '>', 0)->field(['shareName', 'shareCode'])->buildSql();
 check(str_contains($fieldSql, '`share_name`') && str_contains($fieldSql, '`share_code`'), 'field(属性名列表) 自动转列名');
 
-$fieldAliasSql = RelationShareBase::where('share_id', '>', 0)->field(['shareName' => 'n'])->fetchSql()->select();
+$fieldAliasSql = RelationShareBase::where('share_id', '>', 0)->field(['shareName' => 'n'])->buildSql();
 check(str_contains($fieldAliasSql, '`share_name` AS `n`'), 'field 键值对别名 (shareName => n) 转换键并生成 AS');
 
 // 表达式/Raw 不误转（未声明属性名原样透传）
-$fieldExprSql = DB::table('share_base')->field([new Raw('COUNT(*) AS c')])->fetchSql()->select();
+$fieldExprSql = DB::table('share_base')->field([new Raw('COUNT(*) AS c')])->buildSql();
 check(str_contains($fieldExprSql, 'COUNT(*) AS c'), 'field Raw 表达式原样透传');
 
 // ---------- where 强类型化新 API ----------
@@ -237,14 +237,14 @@ echo "\n== where 强类型化 (whereEqual/whereMap/whereGroup/orWhere) ==\n";
 $eqRow = RelationShareBase::whereEqual('shareId', $shareId)->find();
 check($eqRow !== null && $eqRow->shareId === $shareId, 'whereEqual(属性名 shareId) 自动转列名');
 
-$eqNullSql = RelationShareBase::whereEqual('userId', null)->fetchSql()->select();
+$eqNullSql = RelationShareBase::whereEqual('userId', null)->buildSql();
 check(str_contains($eqNullSql, '`user_id` IS NULL'), 'whereEqual null 转 IS NULL');
 
 // whereMap：批量等值 + 属性名转换
 $mapRows = RelationShareBase::whereMap(['shareId' => $shareId])->select();
 check(count($mapRows) === 1, 'whereMap(属性名 shareId) 自动转列名');
 
-$mapSql = RelationShareBase::whereMap(['shareId' => $shareId, 'userId' => null])->fetchSql()->select();
+$mapSql = RelationShareBase::whereMap(['shareId' => $shareId, 'userId' => null])->buildSql();
 check(
     str_contains($mapSql, '`share_id` = ?') && str_contains($mapSql, '`user_id` IS NULL'),
     'whereMap 多条件 AND 连接 + null 转 IS NULL'
@@ -261,21 +261,21 @@ try {
 // whereGroup：闭包分组 + 属性名转换
 $groupSql = RelationShareBase::whereGroup(function ($q) use ($shareId) {
     $q->whereEqual('shareId', $shareId)->orWhere('shareCode', '=', '');
-})->fetchSql()->select();
+})->buildSql();
 check(
     str_contains($groupSql, '( `share_id` = ? OR `share_code` = ? )'),
     'whereGroup 闭包分组括号包裹 + 属性名转换'
 );
 
 // orWhere：OR 连接
-$orSql = RelationShareBase::whereEqual('shareId', 0)->orWhereEqual('shareId', $shareId)->fetchSql()->select();
+$orSql = RelationShareBase::whereEqual('shareId', 0)->orWhereEqual('shareId', $shareId)->buildSql();
 check(
     str_contains($orSql, '`share_id` = ? OR `share_id` = ?'),
     'orWhereEqual OR 连接'
 );
 
 // whereColumn 省略形态（whereColumn('a','b') => a = b）
-$colOmitSql = RelationShareBase::whereColumn('shareCode', 'shareName')->fetchSql()->select();
+$colOmitSql = RelationShareBase::whereColumn('shareCode', 'shareName')->buildSql();
 check(
     str_contains($colOmitSql, '`share_code` = `share_name`'),
     'whereColumn 省略形态 (shareCode = shareName)'

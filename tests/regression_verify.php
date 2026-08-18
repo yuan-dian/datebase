@@ -8,7 +8,7 @@
 // +----------------------------------------------------------------------
 // | Date: 2026/8/17
 // +----------------------------------------------------------------------
-// 核心回归验证：dirty 检测、空数组保留、insertAll 短路、聚合、分页、fetchSql、
+// 核心回归验证：dirty 检测、空数组保留、insertAll 短路、聚合、分页、buildSql、
 // 软删除、AutoWriteTime、JSON 列、IdType 变体、Db 层独立使用
 // 使用 tmp_reg_* 测试表（幂等重建），不影响业务表
 
@@ -142,33 +142,18 @@ check($page->total() === $total, 'paginate total 正确');
 $after = RegAutoModel::select();
 check(count($after) >= $total, 'paginate 后 select 不受 limit 污染');
 
-// ---------- fetchSql ----------
-echo "\n== fetchSql ==\n";
+// ---------- buildSql ----------
+echo "\n== buildSql ==\n";
 
-$sql = RegAutoModel::where('id', '>', 0)->fetchSql()->select();
-check(is_string($sql), 'fetchSql()->select() 返回 string');
+$sql = RegAutoModel::where('id', '>', 0)->buildSql();
+check(is_string($sql), 'buildSql() 返回 string');
 check(str_contains($sql, 'SELECT'), 'SQL 含 SELECT');
 
-try {
-    RegAutoModel::fetchSql()->paginate(2);
-    check(false, 'fetchSql+paginate 应抛异常');
-} catch (\yuandian\Database\Exceptions\DbException) {
-    check(true, 'fetchSql+paginate 抛 DbException');
-}
+$valueSql = DB::table('tmp_reg_auto')->where('id', '>', 0)->field(['name'])->limit(1)->buildSql();
+check(str_contains($valueSql, 'SELECT'), 'value 等价链 buildSql() 返回 SQL');
 
-$valueSql = DB::table('tmp_reg_auto')->where('id', '>', 0)->fetchSql()->value('name');
-check(is_string($valueSql) && str_contains($valueSql, 'SELECT'), 'fetchSql()->value() 返回 SQL');
-
-$columnSql = DB::table('tmp_reg_auto')->where('id', '>', 0)->fetchSql()->column('name');
-check(is_string($columnSql) && str_contains($columnSql, 'SELECT'), 'fetchSql()->column() 返回 SQL');
-
-try {
-    $gen = DB::table('tmp_reg_auto')->where('id', '>', 0)->fetchSql()->cursor();
-    $gen->current();
-    check(false, 'fetchSql+cursor 应抛异常');
-} catch (\yuandian\Database\Exceptions\DbException) {
-    check(true, 'fetchSql+cursor 抛 DbException');
-}
+$columnSql = DB::table('tmp_reg_auto')->where('id', '>', 0)->field(['name'])->buildSql();
+check(str_contains($columnSql, 'SELECT'), 'column 等价链 buildSql() 返回 SQL');
 
 // ---------- 软删除 ----------
 echo "\n== 软删除 ==\n";
@@ -184,12 +169,12 @@ check($withTrashed !== null, 'withoutGlobalScopes 可见软删行');
 // ---------- P0-1：order 方向白名单 ----------
 echo "\n== P0-1 order 方向白名单 ==\n";
 
-$safeSql = DB::table('tmp_reg_auto')->order('id', 'ASC; DROP TABLE tmp_reg_auto; --')->fetchSql()->select();
+$safeSql = DB::table('tmp_reg_auto')->order('id', 'ASC; DROP TABLE tmp_reg_auto; --')->buildSql();
 check(!str_contains($safeSql, 'DROP'), 'order 方向注入被白名单拦截 (ASC; DROP...)');
 check(str_contains($safeSql, 'ORDER BY'), 'order 仍生成 ORDER BY');
-$descSql = DB::table('tmp_reg_auto')->order('id', 'desc')->fetchSql()->select();
+$descSql = DB::table('tmp_reg_auto')->order('id', 'desc')->buildSql();
 check(str_contains($descSql, 'DESC'), '合法 desc 方向保留');
-$badSql = DB::table('tmp_reg_auto')->order('id', 'random_direction')->fetchSql()->select();
+$badSql = DB::table('tmp_reg_auto')->order('id', 'random_direction')->buildSql();
 check(!str_contains($badSql, 'random_direction'), '非法方向归 ASC（不原样拼接）');
 
 // ---------- P0-2：Raw/Closure 子查询 bind 合并 ----------
@@ -212,7 +197,7 @@ check($existsCount >= 1, 'whereExists Closure bind 正确合并');
 echo "\n== P0-3 strtr 防 token 碰撞 ==\n";
 
 // Raw 值中含 %ORDER% 字面量：str_replace 会被二次替换成 ORDER BY 片段，strtr 单遍替换保留
-$tokenSql = DB::table('tmp_reg_auto')->where('name', '=', new Raw('"%ORDER%"'))->fetchSql()->select();
+$tokenSql = DB::table('tmp_reg_auto')->where('name', '=', new Raw('"%ORDER%"'))->buildSql();
 check(str_contains($tokenSql, '"%ORDER%"'), 'Raw 值中的 %ORDER% 字面量未被二次替换');
 
 // ---------- IdType 变体 ----------

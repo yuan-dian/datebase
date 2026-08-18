@@ -78,16 +78,16 @@ class ModelQuery extends Query
     }
 
     /**
-     * @return Model|string|null
+     * @return TModel|null
      */
-    public function find(): Model|string|null
+    public function find(): ?Model
     {
         $this->applyGlobalScopes();
 
         $result = parent::find();
 
-        if (is_string($result) || $result === null) {
-            return $result;
+        if ($result === null) {
+            return null;
         }
 
         $model = $this->hydrate($result);
@@ -100,17 +100,13 @@ class ModelQuery extends Query
     }
 
     /**
-     * @return TModel[]|string
+     * @return TModel[]
      */
-    public function select(): array|string
+    public function select(): array
     {
         $this->applyGlobalScopes();
 
         $rows = parent::select();
-
-        if (is_string($rows)) {
-            return $rows;
-        }
 
         $models = [];
         foreach ($rows as $row) {

@@ -352,7 +352,7 @@ class MongoQuery extends BaseQuery
             $options['limit'] = 0;
         }
 
-        foreach (['master', 'fetch_sql', 'fetch_cursor'] as $name) {
+        foreach (['master', 'fetch_cursor'] as $name) {
             if (!isset($options[$name])) {
                 $options[$name] = false;
             }
@@ -405,9 +405,11 @@ class MongoQuery extends BaseQuery
     }
 
     /**
-     * @return array<string, mixed>|null
+     * 返回类型取公共上界 array|object|null（PHP 协变）：Model 层子类收窄为 ?Model
+     *
+     * @return array<string, mixed>|object|null
      */
-    public function find()
+    public function find(): array|object|null
     {
         $this->options['limit'] = 1;
         $filter = $this->builder->buildFilter($this->options);
@@ -428,7 +430,7 @@ class MongoQuery extends BaseQuery
     /**
      * @return list<array<string, mixed>>
      */
-    public function select()
+    public function select(): array
     {
         $filter = $this->builder->buildFilter($this->options);
         $sort = $this->builder->buildSort($this->options);

@@ -81,22 +81,23 @@ abstract class BaseQuery
     abstract protected function newSubQuery(): static;
 
     // ------- 终端方法 -------
-    // 说明：find/select 不声明 PHP 返回类型（仅 docblock）。
-    // 子类可自由收窄：Db 层返回数组，Model 层返回模型（Model 与 array 不协变，父类声明类型将无法收窄）。
+    // 返回类型用公共上界 array|object|null / array：
+    // Db 层子类收窄为 ?array（Query/MongoQuery），Model 层收窄为 ?Model（ModelQuery/MongoModelQuery）。
+    // PHP 协变规则要求父类返回类型是子类的父型，直接声明 array 会锁死 Model 层的收窄。
 
     /**
      * 查询单条记录
      *
-     * @return array<string, mixed>|string|null 行数据；fetchSql 模式返回 SQL
+     * @return array<string, mixed>|object|null 行数据（Db 层为数组，Model 层为模型实例）
      */
-    abstract public function find();
+    abstract public function find(): array|object|null;
 
     /**
      * 查询多条记录
      *
-     * @return list<array<string, mixed>>|string 行数据数组；fetchSql 模式返回 SQL
+     * @return list<array<string, mixed>>|list<object> 行数据数组（Db 层为数组行，Model 层为模型列表）
      */
-    abstract public function select();
+    abstract public function select(): array;
 
     /**
      * @return int|string  SQL 返回自增 ID（int），MongoDB 返回 ObjectId（string）
@@ -186,34 +187,6 @@ abstract class BaseQuery
     public function setDec(string $field, float|int $step = 1): int
     {
         return $this->dec($field, $step)->update();
-    }
-
-    /**
-     * 获取执行的SQL语句而不进行实际的查询
-     *
-     * @param bool $fetch 是否返回sql
-     */
-    public function fetchSql(bool $fetch = true): static
-    {
-        $this->options['fetch_sql'] = $fetch;
-        return $this;
-    }
-
-    /**
-     * 创建子查询SQL
-     *
-     * @param bool $sub 是否添加括号
-     */
-    public function buildSql(bool $sub = true): string
-    {
-        $this->options['fetch_sql'] = true;
-        $result = $this->select();
-
-        if (is_string($result)) {
-            return $sub ? '( ' . $result . ' )' : $result;
-        }
-
-        return '';
     }
 
     // ======================== 链式方法 — 排序 / 分页 ========================
@@ -413,10 +386,6 @@ abstract class BaseQuery
         ?int $page = null,
         string $pageName = 'page'
     ): Paginator {
-        if (!empty($this->options['fetch_sql'])) {
-            throw new DbException('fetchSql 模式不支持分页');
-        }
-
         $currentPage = $this->getCurrentPage($page, $pageName);
 
         if ($simple) {
