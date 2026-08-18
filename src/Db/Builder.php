@@ -13,41 +13,22 @@ class Builder extends BaseBuilder
     {
         $bind = [];
 
-        $sql = str_replace(
-            [
-                '%TABLE%',
-                '%DISTINCT%',
-                '%EXTRA%',
-                '%FIELD%',
-                '%JOIN%',
-                '%WHERE%',
-                '%GROUP%',
-                '%HAVING%',
-                '%ORDER%',
-                '%LIMIT%',
-                '%UNION%',
-                '%LOCK%',
-                '%COMMENT%',
-                '%FORCE%'
-            ],
-            [
-                $this->parseTable($options['table']),
-                $this->parseDistinct($options['distinct'] ?? false),
-                $this->parseExtra($options['extra'] ?? ''),
-                $this->parseField($options['field'] ?? ['*']),
-                $this->parseJoin($options['join'] ?? []),
-                $this->parseWhere($options['where'] ?? [], $bind),
-                $this->parseGroup($options['group'] ?? []),
-                $this->parseHaving($options['having'] ?? []),
-                $this->parseOrder($options['order'] ?? []),
-                $this->parseLimit($options['limit'] ?? null, $options['offset'] ?? null),
-                $this->parseUnion($options['union'] ?? []),
-                $this->parseLock($options['lock'] ?? false),
-                $this->parseComment($options['comment'] ?? ''),
-                $this->parseForce($options['force'] ?? ''),
-            ],
-            $this->selectSql
-        );
+        $sql = strtr($this->selectSql, [
+            '%TABLE%'   => $this->parseTable($options['table']),
+            '%DISTINCT%' => $this->parseDistinct($options['distinct'] ?? false),
+            '%EXTRA%'   => $this->parseExtra($options['extra'] ?? ''),
+            '%FIELD%'   => $this->parseField($options['field'] ?? ['*']),
+            '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
+            '%WHERE%'   => $this->parseWhere($options['where'] ?? [], $bind),
+            '%GROUP%'   => $this->parseGroup($options['group'] ?? []),
+            '%HAVING%'  => $this->parseHaving($options['having'] ?? []),
+            '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
+            '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, $options['offset'] ?? null),
+            '%UNION%'   => $this->parseUnion($options['union'] ?? []),
+            '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
+            '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
+            '%FORCE%'   => $this->parseForce($options['force'] ?? ''),
+        ]);
 
         return [trim($sql), $bind];
     }
@@ -68,17 +49,13 @@ class Builder extends BaseBuilder
             }
         }
 
-        $sql = str_replace(
-            ['%EXTRA%', '%TABLE%', '%FIELD%', '%DATA%', '%COMMENT%'],
-            [
-                '',
-                $this->parseTable($table),
-                implode(', ', array_map([$this, 'parseKey'], $fields)),
-                implode(', ', $placeholders),
-                '',
-            ],
-            $this->insertSql
-        );
+        $sql = strtr($this->insertSql, [
+            '%EXTRA%'   => '',
+            '%TABLE%'   => $this->parseTable($table),
+            '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $fields)),
+            '%DATA%'    => implode(', ', $placeholders),
+            '%COMMENT%' => '',
+        ]);
 
         return [$sql, $bind];
     }
@@ -107,17 +84,13 @@ class Builder extends BaseBuilder
             $values[] = '(' . implode(', ', $placeholders) . ')';
         }
 
-        $sql = str_replace(
-            ['%EXTRA%', '%TABLE%', '%FIELD%', '%DATA%', '%COMMENT%'],
-            [
-                '',
-                $this->parseTable($table),
-                implode(', ', array_map([$this, 'parseKey'], $fields)),
-                implode(', ', $values),
-                '',
-            ],
-            $this->insertAllSql
-        );
+        $sql = strtr($this->insertAllSql, [
+            '%EXTRA%'   => '',
+            '%TABLE%'   => $this->parseTable($table),
+            '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $fields)),
+            '%DATA%'    => implode(', ', $values),
+            '%COMMENT%' => '',
+        ]);
 
         return [$sql, $bind];
     }
@@ -126,16 +99,12 @@ class Builder extends BaseBuilder
     {
         $sourceSql = $this->select($query->getOptions());
 
-        $sql = str_replace(
-            ['%TABLE%', '%FIELD%', '%DATA%', '%COMMENT%'],
-            [
-                $this->parseTable($table),
-                implode(', ', array_map([$this, 'parseKey'], $fields)),
-                $sourceSql[0],
-                '',
-            ],
-            'INSERT INTO %TABLE% (%FIELD%) %DATA% %COMMENT%'
-        );
+        $sql = strtr('INSERT INTO %TABLE% (%FIELD%) %DATA% %COMMENT%', [
+            '%TABLE%'   => $this->parseTable($table),
+            '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $fields)),
+            '%DATA%'    => $sourceSql[0],
+            '%COMMENT%' => '',
+        ]);
 
         return [trim($sql), $sourceSql[1]];
     }
@@ -163,17 +132,13 @@ class Builder extends BaseBuilder
             $rows[] = '(' . implode(', ', $placeholders) . ')';
         }
 
-        $sql = str_replace(
-            ['%EXTRA%', '%TABLE%', '%FIELD%', '%DATA%', '%COMMENT%'],
-            [
-                '',
-                $this->parseTable($table),
-                implode(', ', array_map([$this, 'parseKey'], $keys)),
-                implode(', ', $rows),
-                '',
-            ],
-            $this->insertAllSql
-        );
+        $sql = strtr($this->insertAllSql, [
+            '%EXTRA%'   => '',
+            '%TABLE%'   => $this->parseTable($table),
+            '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $keys)),
+            '%DATA%'    => implode(', ', $rows),
+            '%COMMENT%' => '',
+        ]);
 
         return [$sql, $bind];
     }
@@ -195,21 +160,17 @@ class Builder extends BaseBuilder
         }
 
         $whereBind = [];
-        $sql = str_replace(
-            ['%TABLE%', '%EXTRA%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%', '%COMMENT%'],
-            [
-                $this->parseTable($table),
-                $this->parseExtra($options['extra'] ?? ''),
-                implode(', ', $set),
-                $this->parseJoin($options['join'] ?? []),
-                $this->parseWhere($where, $whereBind),
-                $this->parseOrder($options['order'] ?? []),
-                $this->parseLimit($options['limit'] ?? null, null),
-                $this->parseLock($options['lock'] ?? false),
-                $this->parseComment($options['comment'] ?? ''),
-            ],
-            $this->updateSql
-        );
+        $sql = strtr($this->updateSql, [
+            '%TABLE%'   => $this->parseTable($table),
+            '%EXTRA%'   => $this->parseExtra($options['extra'] ?? ''),
+            '%SET%'     => implode(', ', $set),
+            '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
+            '%WHERE%'   => $this->parseWhere($where, $whereBind),
+            '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
+            '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, null),
+            '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
+            '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
+        ]);
 
         return [trim($sql), array_merge($bind, $whereBind)];
     }
@@ -218,21 +179,17 @@ class Builder extends BaseBuilder
     {
         $bind = [];
 
-        $sql = str_replace(
-            ['%TABLE%', '%EXTRA%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%', '%COMMENT%'],
-            [
-                $this->parseTable($table),
-                $this->parseExtra($options['extra'] ?? ''),
-                '',
-                $this->parseJoin($options['join'] ?? []),
-                $this->parseWhere($where, $bind),
-                $this->parseOrder($options['order'] ?? []),
-                $this->parseLimit($options['limit'] ?? null, null),
-                $this->parseLock($options['lock'] ?? false),
-                $this->parseComment($options['comment'] ?? ''),
-            ],
-            $this->deleteSql
-        );
+        $sql = strtr($this->deleteSql, [
+            '%TABLE%'   => $this->parseTable($table),
+            '%EXTRA%'   => $this->parseExtra($options['extra'] ?? ''),
+            '%USING%'   => '',
+            '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
+            '%WHERE%'   => $this->parseWhere($where, $bind),
+            '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
+            '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, null),
+            '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
+            '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
+        ]);
 
         return [trim($sql), $bind];
     }
@@ -395,6 +352,8 @@ class Builder extends BaseBuilder
     protected function parseCompare(string $key, string $exp, mixed $value, string $field, array &$bind): string
     {
         if ($value instanceof Raw) {
+            // Raw 自带 bind（如 whereRaw 生成的 Raw 值），合并避免参数错位
+            $bind = array_merge($bind, $value->getBind());
             return $key . ' ' . $exp . ' ' . $value->getValue();
         }
 
@@ -402,7 +361,8 @@ class Builder extends BaseBuilder
             $subQuery = $this->connection->table();
             $value($subQuery);
             $subSql = $this->select($subQuery->getOptions());
-            return $key . ' ' . $exp . ' ' . $subSql[0];
+            $bind = array_merge($bind, $subSql[1]);
+            return $key . ' ' . $exp . ' ( ' . $subSql[0] . ' )';
         }
 
         if ($exp === '=' && is_null($value)) {
@@ -489,6 +449,7 @@ class Builder extends BaseBuilder
     protected function parseExists(string $key, string $exp, mixed $value, string $field, array &$bind): string
     {
         if ($value instanceof Raw) {
+            $bind = array_merge($bind, $value->getBind());
             return $exp . ' ( ' . $value->getValue() . ' )';
         }
 
@@ -496,6 +457,7 @@ class Builder extends BaseBuilder
             $subQuery = $this->connection->table();
             $value($subQuery);
             $subSql = $this->select($subQuery->getOptions());
+            $bind = array_merge($bind, $subSql[1]);
             return $exp . ' ( ' . $subSql[0] . ' )';
         }
 
@@ -541,7 +503,12 @@ class Builder extends BaseBuilder
             if ($field instanceof Raw) {
                 $orders[] = $field->getValue();
             } else {
-                $orders[] = $this->parseKey($field) . ' ' . strtoupper($dir);
+                // 方向白名单：仅允许 ASC/DESC，其余归 ASC，防止 SQL 注入
+                $dir = strtoupper((string)$dir);
+                if (!in_array($dir, ['ASC', 'DESC'], true)) {
+                    $dir = 'ASC';
+                }
+                $orders[] = $this->parseKey($field) . ' ' . $dir;
             }
         }
 

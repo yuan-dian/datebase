@@ -137,7 +137,7 @@ check($multi->shareFolder === null || $multi->shareFolder instanceof RelationSha
 echo "\n== toArray / toJson ==\n";
 
 $arr = $share->toArray();
-check(isset($arr['share_id']), 'toArray 含主键 share_id');
+check(isset($arr['shareId']), 'toArray 含主键 shareId (属性名键)');
 check(array_key_exists('share_files', $arr) || array_key_exists('shareFiles', $arr), 'toArray 含关联键 (share_files 或 shareFiles)');
 check(is_array($arr['share_files'] ?? $arr['shareFiles'] ?? null), 'toArray 关联值为数组');
 
@@ -147,7 +147,21 @@ check(isset($json['shareId']), 'json_encode 序列化 public 属性 (camelCase s
 
 $str = (string)$share;
 $strJson = json_decode($str, true);
-check(isset($strJson['share_id']), 'toJson __toString 输出列名字段 (share_id)');
+check(isset($strJson['shareId']), 'toJson __toString 输出属性名字段 (shareId)');
+
+// ---------- P0-4：关联属性不进 columnMap ----------
+echo "\n== P0-4 关联属性不进 columnMap ==\n";
+
+$map = RelationShareBase::getColumnMap();
+check(!array_key_exists('shareFiles', $map) && !array_key_exists('shareFolder', $map), 'columnMap 不含关联属性键 (shareFiles/shareFolder)');
+check(array_key_exists('shareName', $map), 'columnMap 仍含普通字段 shareName');
+
+// 加载关联后 save()：关联对象不得被当作列值写入数据库（修前报 Unknown column）
+$p0 = RelationShareBase::where('share_id', '=', $shareId)->find();
+$p0->load('shareFiles');
+$saveOk = $p0->save();
+check($saveOk === true, '加载关联后 save() 正常返回（不把关联对象写入数据库列）');
+check(is_array($p0->shareFiles), 'save() 后关联数据仍保留');
 
 // ---------- Db 层独立使用对照 ----------
 echo "\n== Db 层独立使用（重构对照） ==\n";

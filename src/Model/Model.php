@@ -171,6 +171,13 @@ abstract class Model
             }
         }
 
+        // 已加载的关联属性（不在 columnMap 中）同样参与序列化
+        foreach (static::getMeta()['relations'] as $prop => $relation) {
+            if (($this->$prop ?? null) !== null) {
+                $data[$prop] = $this->$prop;
+            }
+        }
+
         return $data;
     }
 
@@ -328,25 +335,27 @@ abstract class Model
             }
 
 
-            $columnName = StrUtil::snake($propName);
-            $fields[$propName] = $columnName;
+            // 关联属性不是数据库列：不进入 fields（columnMap），
+            // 避免 getDirtyData 把已加载的关联对象当列值写入数据库
+            $relation = self::parseRelations($prop);
+            if ($relation) {
+                $relations[$propName] = $relation;
+            } else {
+                $columnName = StrUtil::snake($propName);
+                $fields[$propName] = $columnName;
+            }
 
             // Check for TableId attribute
             $tableIdAttr = $prop->getAttribute(TableId::class);
             if ($tableIdAttr) {
                 $pkProperty = $propName;
-                $pkColumn = $columnName;
+                $pkColumn = StrUtil::snake($propName);
                 $pkType = $tableIdAttr->type;
             }
             // get the json column metadata
             $jsonColumnAttr = $prop->getAttribute(JsonColumn::class);
             if ($jsonColumnAttr) {
                 $jsonColumns[$propName] = $jsonColumnAttr->castTo;
-            }
-
-            $relation = self::parseRelations($prop);
-            if ($relation) {
-                $relations[$propName] = $relation;
             }
         }
 

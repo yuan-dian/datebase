@@ -14,6 +14,7 @@
 
 declare(strict_types=1);
 
+use yuandian\Database\Db\Raw;
 use yuandian\Database\Facade\DB;
 use yuandian\Database\Tests\model\RegAutoModel;
 use yuandian\Database\Tests\model\RegSnowModel;
@@ -165,6 +166,40 @@ $softRow = DB::table('tmp_reg_auto')->where('id', '=', $m->id)->find();
 check($softRow['deleted_time'] !== null, 'deleted_time 已写入（物理行仍在）');
 $withTrashed = RegAutoModel::withoutGlobalScopes()->where('id', '=', $m->id)->find();
 check($withTrashed !== null, 'withoutGlobalScopes 可见软删行');
+
+// ---------- P0-1：order 方向白名单 ----------
+echo "\n== P0-1 order 方向白名单 ==\n";
+
+$safeSql = DB::table('tmp_reg_auto')->order('id', 'ASC; DROP TABLE tmp_reg_auto; --')->fetchSql()->select();
+check(!str_contains($safeSql, 'DROP'), 'order 方向注入被白名单拦截 (ASC; DROP...)');
+check(str_contains($safeSql, 'ORDER BY'), 'order 仍生成 ORDER BY');
+$descSql = DB::table('tmp_reg_auto')->order('id', 'desc')->fetchSql()->select();
+check(str_contains($descSql, 'DESC'), '合法 desc 方向保留');
+$badSql = DB::table('tmp_reg_auto')->order('id', 'random_direction')->fetchSql()->select();
+check(!str_contains($badSql, 'random_direction'), '非法方向归 ASC（不原样拼接）');
+
+// ---------- P0-2：Raw/Closure 子查询 bind 合并 ----------
+echo "\n== P0-2 Raw/Closure bind 合并 ==\n";
+
+$rawRow = DB::table('tmp_reg_auto')->where('name', '=', new Raw('?', ['批量1']))->find();
+check(is_array($rawRow) && ($rawRow['name'] ?? '') === '批量1', 'where Raw 自带 bind 正确执行');
+
+$subCount = DB::table('tmp_reg_auto')->where('id', '=', function ($q) {
+    $q->table('tmp_reg_auto')->where('name', '=', '批量2')->field('id')->limit(1);
+})->count();
+check($subCount >= 1, 'parseCompare Closure 子查询 bind 正确合并 (= 子查询)');
+
+$existsCount = DB::table('tmp_reg_auto')->whereExists(function ($q) {
+    $q->table('tmp_reg_auto')->where('name', '=', '批量3');
+})->count();
+check($existsCount >= 1, 'whereExists Closure bind 正确合并');
+
+// ---------- P0-3：strtr 防 token 碰撞 ----------
+echo "\n== P0-3 strtr 防 token 碰撞 ==\n";
+
+// Raw 值中含 %ORDER% 字面量：str_replace 会被二次替换成 ORDER BY 片段，strtr 单遍替换保留
+$tokenSql = DB::table('tmp_reg_auto')->where('name', '=', new Raw('"%ORDER%"'))->fetchSql()->select();
+check(str_contains($tokenSql, '"%ORDER%"'), 'Raw 值中的 %ORDER% 字面量未被二次替换');
 
 // ---------- IdType 变体 ----------
 echo "\n== IdType 变体 ==\n";
