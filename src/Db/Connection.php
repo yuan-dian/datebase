@@ -62,6 +62,20 @@ abstract class Connection implements ConnectionInterface
         }
     }
 
+    /**
+     * 是否存在 SQL 事件监听器（连接级或 DbManager 级）
+     *
+     * 用于短路 SQL 监控字符串构建：无监听器时不必拼接最终 SQL。
+     */
+    protected function hasSqlListener(): bool
+    {
+        if (!empty($this->listen['sql'])) {
+            return true;
+        }
+
+        return $this->db !== null && !empty($this->db->getListen()['sql']);
+    }
+
     // ======================== 工厂方法 ========================
 
     /**

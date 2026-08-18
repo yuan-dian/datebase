@@ -60,7 +60,7 @@ abstract class BaseBuilder
     abstract protected function parseHaving(array $having): string;
     abstract protected function parseOrder(array $order): string;
     abstract protected function parseLimit(?int $limit, ?int $offset): string;
-    abstract protected function parseUnion(array $union): string;
+    abstract protected function parseUnion(array $union, array &$bind): string;
     abstract protected function parseLock(bool|string $lock): string;
     abstract protected function parseComment(string $comment): string;
     abstract protected function parseDistinct(bool $distinct): string;

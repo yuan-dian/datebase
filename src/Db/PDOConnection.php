@@ -264,8 +264,8 @@ abstract class PDOConnection extends Connection
             $this->bindValue($bind);
             $this->PDOStatement->execute();
 
-            // SQL 监控
-            if (!empty($this->config['trigger_sql'])) {
+            // SQL 监控：存在监听器时才构建最终 SQL（无监听器短路，避免 getRealSql 开销）
+            if (!empty($this->config['trigger_sql']) && $this->hasSqlListener()) {
                 $this->triggerSql('', $master);
             }
 

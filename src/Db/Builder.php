@@ -24,7 +24,7 @@ class Builder extends BaseBuilder
             '%HAVING%'  => $this->parseHaving($options['having'] ?? []),
             '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
             '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, $options['offset'] ?? null),
-            '%UNION%'   => $this->parseUnion($options['union'] ?? []),
+            '%UNION%'   => $this->parseUnion($options['union'] ?? [], $bind),
             '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
             '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
             '%FORCE%'   => $this->parseForce($options['force'] ?? ''),
@@ -522,7 +522,7 @@ class Builder extends BaseBuilder
         return $sql;
     }
 
-    protected function parseUnion(array $union): string
+    protected function parseUnion(array $union, array &$bind): string
     {
         if (empty($union)) {
             return '';
@@ -534,6 +534,8 @@ class Builder extends BaseBuilder
             if ($u['query'] instanceof BaseQuery) {
                 $subSql = $this->select($u['query']->getOptions());
                 $sql .= ' ' . $type . ' ' . $subSql[0];
+                // 合并子查询的绑定参数，避免 UNION 子查询丢失 bind
+                $bind = array_merge($bind, $subSql[1]);
             } elseif (is_string($u['query'])) {
                 $sql .= ' ' . $type . ' ( ' . $u['query'] . ' )';
             }

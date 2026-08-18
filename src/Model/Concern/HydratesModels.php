@@ -18,6 +18,28 @@ use yuandian\Tools\utils\StrUtil;
 trait HydratesModels
 {
     /**
+     * 列名→属性名反向映射缓存（按模型类），避免每行重复 array_flip
+     *
+     * @var array<string, array<string, string>>
+     */
+    private static array $reverseMapCache = [];
+
+    /**
+     * 获取列名→属性名反向映射（静态缓存）
+     *
+     * @param class-string<Model> $modelClass 模型类名
+     * @return array<string, string> 列名→属性名
+     */
+    protected function getReverseColumnMap(string $modelClass): array
+    {
+        if (!isset(self::$reverseMapCache[$modelClass])) {
+            self::$reverseMapCache[$modelClass] = array_flip($modelClass::getColumnMap());
+        }
+
+        return self::$reverseMapCache[$modelClass];
+    }
+
+    /**
      * 将数据库行数据水合为模型实例
      *
      * @param array<string, mixed> $row 数据库行数据（键为列名）
@@ -30,7 +52,7 @@ trait HydratesModels
         $model->setExists(true);
 
         $columnMap = $model::getColumnMap();
-        $reverseMap = array_flip($columnMap);
+        $reverseMap = $this->getReverseColumnMap($this->modelClass);
         $jsonColumns = $model::getJsonColumns();
 
         foreach ($row as $column => $value) {
