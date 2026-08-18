@@ -243,7 +243,7 @@ abstract class Model
     /**
      * 批量预加载时写入关联结果（标记已加载并同步到属性）
      */
-    public function setRelation(string $name, mixed $result): static
+    public function setRelation(string $name, Model|array|null $result): static
     {
         $this->loadedRelations[$name] = true;
 
@@ -272,10 +272,11 @@ abstract class Model
      *
      * @return Model|array|null 关联结果（Model[] 为 HasMany 系列；Model 为 HasOne 系列）
      */
-    protected function loadRelation(string $name): mixed
+    protected function loadRelation(string $name): Model|array|null
     {
         if (isset($this->loadedRelations[$name])) {
-            return $this->loadedRelations[$name];
+            // 已加载标记仅用于短路；load() 入口已做 isset 守卫，此处直接返回 null
+            return null;
         }
 
         $info = static::getRelationInfo($name);
@@ -734,9 +735,9 @@ abstract class Model
      *
      * @param mixed $value 数据库原始值（string / array / null）
      * @param class-string<Object>|null $castTo 目标类名，null → 原生数组
-     * @return array<Object>|Object|array
+     * @return array|object|null 反序列化结果
      */
-    public static function castFromJson(mixed $value, ?string $castTo): mixed
+    public static function castFromJson(mixed $value, ?string $castTo): array|object|null
     {
         if (empty($value)) {
             return $castTo !== null ? null : [];
