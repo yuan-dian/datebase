@@ -138,7 +138,7 @@ abstract class BaseQuery
         if ($query instanceof \Closure) {
             $query($this, $condition);
         } elseif (is_array($query)) {
-            $this->where($query);
+            $this->whereMap($query);
         }
     }
 
@@ -150,7 +150,7 @@ abstract class BaseQuery
      */
     public function inc(string $field, float|int $step = 1): static
     {
-        $this->options['data'][$field] = new Express('+', $step);
+        $this->options['data'][$this->convertFieldName($field)] = new Express('+', $step);
         return $this;
     }
 
@@ -162,7 +162,7 @@ abstract class BaseQuery
      */
     public function dec(string $field, float|int $step = 1): static
     {
-        $this->options['data'][$field] = new Express('-', $step);
+        $this->options['data'][$this->convertFieldName($field)] = new Express('-', $step);
         return $this;
     }
 
@@ -220,7 +220,7 @@ abstract class BaseQuery
 
     public function order(string $field, string $direction = 'asc'): static
     {
-        $this->options['order'][] = [$field, $direction];
+        $this->options['order'][] = [$this->convertFieldName($field), $direction];
         return $this;
     }
 
@@ -238,12 +238,26 @@ abstract class BaseQuery
 
     // ======================== 链式方法 — 字段 / 表 ========================
 
-    public function field(string|array $fields): static
+    /**
+     * 查询字段（强制数组）
+     *
+     * 列表形式 field(['id', 'name'])；别名用键值对 field(['name' => 'user_name'])。
+     *
+     * @param array $fields 字段列表；元素可为字段名或 Raw；键值对表示别名（原名 => 别名）
+     */
+    public function field(array $fields): static
     {
-        if (is_string($fields)) {
-            $fields = array_map('trim', explode(',', $fields));
+        $converted = [];
+        foreach ($fields as $key => $field) {
+            if ($field instanceof Raw) {
+                $converted[$key] = $field;
+            } elseif (is_string($key)) {
+                $converted[$this->convertFieldName($key)] = $field;
+            } else {
+                $converted[] = $this->convertFieldName($field);
+            }
         }
-        $this->options['field'] = $fields;
+        $this->options['field'] = $converted;
         return $this;
     }
 
@@ -288,7 +302,11 @@ abstract class BaseQuery
 
     public function groupBy(string ...$fields): static
     {
-        $this->options['group'] = array_merge($this->options['group'], $fields);
+        $converted = [];
+        foreach ($fields as $field) {
+            $converted[] = $this->convertFieldName($field);
+        }
+        $this->options['group'] = array_merge($this->options['group'], $converted);
         return $this;
     }
 

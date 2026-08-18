@@ -103,7 +103,7 @@ $user->save();
 echo "新增用户 ID: {$user->id}\n";
 
 // 查询
-$user = User::where('id', 1)->find();
+$user = User::whereEqual('id', 1)->find();
 echo $user->userName; // 张三
 
 // 修改
@@ -202,19 +202,19 @@ echo $user->id; // 主键自动回填
 
 ```php
 // 查询单条（返回模型实例或 null）
-$user = User::where('id', 1)->find();
+$user = User::whereEqual('id', 1)->find();
 
 // 查询多条（返回模型实例数组）
 $users = User::where('age', '>', 18)->select();
 
 // 使用 with 预加载关联
-$book = Book::with('chapters', 'isbn')->where('book_id', 1)->find();
+$book = Book::with('chapters', 'isbn')->whereEqual('book_id', 1)->find();
 ```
 
 ### 修改
 
 ```php
-$user = User::where('id', 1)->find();
+$user = User::whereEqual('id', 1)->find();
 $user->userName = '李四';
 $user->save();
 ```
@@ -223,11 +223,11 @@ $user->save();
 
 ```php
 // 通过模型删除
-$user = User::where('id', 1)->find();
+$user = User::whereEqual('id', 1)->find();
 $user->delete();
 
 // 通过查询删除
-User::where('id', 1)->delete();
+User::whereEqual('id', 1)->delete();
 ```
 
 ## Db 层独立使用（Query Builder）
@@ -250,14 +250,14 @@ $max   = DB::table('share_base')->max('share_id');
 
 // 写入
 DB::table('share_base')->insert(['share_name' => 'xxx']);
-DB::table('share_base')->where('share_id', 1)->update(['share_name' => 'yyy']);
-DB::table('share_base')->where('share_id', 1)->delete();
+DB::table('share_base')->whereEqual('share_id', 1)->update(['share_name' => 'yyy']);
+DB::table('share_base')->whereEqual('share_id', 1)->delete();
 ```
 
 未指定表名时（`DB::table()` 不带参数返回空查询器），所有终端方法会抛出 `DbException`：
 
 ```php
-DB::table()->where('id', 1)->find(); // 抛出 DbException：查询未指定数据表，请先调用 table()
+DB::table()->whereEqual('id', 1)->find(); // 抛出 DbException：查询未指定数据表，请先调用 table()
 ```
 
 **模型路径**（`User::where(...)`）内部走 `ModelQuery`，与 Db 层共享同一套查询构建、SQL 生成与执行链路，仅在结果返回时多一步水合。
@@ -269,10 +269,10 @@ DB::table()->where('id', 1)->find(); // 抛出 DbException：查询未指定数�
 ```php
 // 基本条件
 User::where('age', '>', 18)->select();
-User::where('userName', '张三')->select();         // 省略运算符，默认 =
+User::whereEqual('userName', '张三')->select();     // 等值条件（=）
 
-// 批量条件
-User::where(['userName' => '张三', 'age' => 25])->select();
+// 批量等值条件（键值对，值为标量或 null；null 转 IS NULL）
+User::whereMap(['userName' => '张三', 'age' => 25])->select();
 
 // OR 条件
 User::where('age', '>', 18)->orWhere('age', '<', 10)->select();
@@ -294,8 +294,8 @@ User::whereLike('userName', '%张%')->select();
 // 原始条件
 User::whereRaw('age > ? AND id IN (?)', [18, [1, 2, 3]])->select();
 
-// 嵌套条件组
-User::where(function ($q) {
+// 条件分组（闭包内构建子条件组，括号包裹）
+User::whereGroup(function ($q) {
     $q->where('age', '>', 18)->orWhere('age', '<', 10);
 })->select();
 ```
@@ -455,7 +455,7 @@ class Book extends Model
 ```php
 // 预加载（在查询时一次性加载关联数据）
 $books = Book::with('chapters', 'isbn')
-    ->where('author_id', 1)
+    ->whereEqual('author_id', 1)
     ->select();
 
 foreach ($books as $book) {
@@ -468,7 +468,7 @@ foreach ($books as $book) {
 }
 
 // 查询后按需加载
-$book = Book::where('book_id', 1)->find();
+$book = Book::whereEqual('book_id', 1)->find();
 $book->load('chapters', 'isbn');
 ```
 

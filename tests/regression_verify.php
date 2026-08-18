@@ -114,7 +114,7 @@ $rows = [
 ];
 $n = RegAutoModel::insertAll($rows);
 check($n === 3, 'insertAll 插入 3 行');
-check(DB::table('tmp_reg_auto')->where('name', 'in', ['批量1', '批量2', '批量3'])->count() === 3, '3 行实际落库');
+check(DB::table('tmp_reg_auto')->whereIn('name', ['批量1', '批量2', '批量3'])->count() === 3, '3 行实际落库');
 
 // ---------- 聚合：count/sum + group 子查询 (A8) ----------
 echo "\n== 聚合 (A8) ==\n";
@@ -199,7 +199,7 @@ $rawRow = DB::table('tmp_reg_auto')->where('name', '=', new Raw('?', ['批量1']
 check(is_array($rawRow) && ($rawRow['name'] ?? '') === '批量1', 'where Raw 自带 bind 正确执行');
 
 $subCount = DB::table('tmp_reg_auto')->where('id', '=', function ($q) {
-    $q->table('tmp_reg_auto')->where('name', '=', '批量2')->field('id')->limit(1);
+    $q->table('tmp_reg_auto')->where('name', '=', '批量2')->field(['id'])->limit(1);
 })->count();
 check($subCount >= 1, 'parseCompare Closure 子查询 bind 正确合并 (= 子查询)');
 

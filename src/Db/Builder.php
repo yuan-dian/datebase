@@ -222,15 +222,10 @@ class Builder extends BaseBuilder
             if ($field instanceof Raw) {
                 $result[] = $field->getValue();
             } elseif (is_string($key)) {
+                // 键值对：原名 => 别名
                 $result[] = $this->parseKey($key) . ' AS ' . $this->parseKey($field);
             } else {
-                $trimmed = trim($field);
-                if (stripos($trimmed, ' AS ') !== false) {
-                    [$original, $alias] = preg_split('/\s+AS\s+/i', $trimmed, 2);
-                    $result[] = $this->parseKey($original) . ' AS ' . $this->parseKey($alias);
-                } else {
-                    $result[] = $this->parseKey($trimmed);
-                }
+                $result[] = $this->parseKey(trim($field));
             }
         }
 

@@ -52,6 +52,32 @@ class ModelQuery extends Query
     }
 
     /**
+     * 字段名转换：属性名（camelCase）→ 列名（snake_case），基于元数据反查。
+     *
+     * 仅转换已声明的属性名；非属性名（如真实列名、SQL 片段）原样返回。
+     * 限定名 table.column 只转换列段。
+     */
+    protected function convertFieldName(string $field): string
+    {
+        if ($field === '') {
+            return $field;
+        }
+
+        $dot = strrpos($field, '.');
+        if ($dot !== false) {
+            $table = substr($field, 0, $dot);
+            $column = substr($field, $dot + 1);
+            $columnMap = $this->modelClass::getColumnMap();
+
+            return $table . '.' . ($columnMap[$column] ?? $column);
+        }
+
+        $columnMap = $this->modelClass::getColumnMap();
+
+        return $columnMap[$field] ?? $field;
+    }
+
+    /**
      * @return Model|string|null
      */
     public function find(): Model|string|null
