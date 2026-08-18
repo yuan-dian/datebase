@@ -55,7 +55,7 @@ abstract class Relation
      */
     public function newQuery(): BaseQuery
     {
-        return Model::newQueryForClass($this->related);
+        return $this->newQueryFor($this->related);
     }
 
     /**
