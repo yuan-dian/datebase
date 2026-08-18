@@ -111,6 +111,8 @@ abstract class Model
 
     /**
      * 删除当前模型
+     *
+     * 按实际影响行数返回成功与否；删除成功后 exists 置 false。
      */
     public function delete(): bool
     {
@@ -125,17 +127,24 @@ abstract class Model
         $query = $query->where(static::getPkColumn(), '=', $pkVal);
 
         $softDelete = static::getSoftDelete();
+        $affected = 0;
         if ($softDelete && $softDelete->enabled) {
-            $query->update([$softDelete->column => date('Y-m-d H:i:s')]);
+            $affected = $query->update([$softDelete->column => date('Y-m-d H:i:s')]);
         } else {
-            $query->delete();
+            $affected = $query->delete();
         }
 
-        return true;
+        if ($affected > 0) {
+            $this->exists = false;
+        }
+
+        return $affected > 0;
     }
 
     /**
      * 强制删除（忽略软删除）
+     *
+     * 按实际影响行数返回成功与否；删除成功后 exists 置 false。
      */
     public function forceDelete(): bool
     {
@@ -149,9 +158,14 @@ abstract class Model
         $query = $this->newQuery();
         $query->withoutGlobalScopes();
         $query->where(static::getPkColumn(), '=', $pkVal);
-        $query->delete();
 
-        return true;
+        $affected = $query->delete();
+
+        if ($affected > 0) {
+            $this->exists = false;
+        }
+
+        return $affected > 0;
     }
 
     // ===================== 属性访问 =====================
@@ -594,6 +608,9 @@ abstract class Model
 
     /**
      * 获取脏数据（仅返回已修改的字段）
+     *
+     * null 语义：显式赋 null 的属性参与 dirty 比较（快照非 null → 写入 NULL 清空字段）；
+     * 属性未赋值（保持默认值）不参与——用 property_exists 而非 isset，避免 null 被误判为未赋值。
      */
     protected function getDirtyData(): array
     {
@@ -602,7 +619,7 @@ abstract class Model
         $jsonColumns = static::getJsonColumns();
 
         foreach ($columnMap as $prop => $column) {
-            if (!isset($this->$prop)) {
+            if (!property_exists($this, $prop)) {
                 continue;
             }
 
@@ -613,9 +630,16 @@ abstract class Model
                 $value = static::castToJson($value);
             }
 
-            // 新记录：所有非 null 属性都写入
-            // 已存在：仅写入变更的属性
-            if (!$this->exists || ($this->original[$column] ?? null) !== $value) {
+            // 新记录：所有非 null 属性都写入（null 表示沿用数据库默认值）
+            if (!$this->exists) {
+                if ($value !== null) {
+                    $data[$column] = $value;
+                }
+                continue;
+            }
+
+            // 已存在：仅写入变更的属性（null 参与比较，显式赋 null 会写入）
+            if (($this->original[$column] ?? null) !== $value) {
                 $data[$column] = $value;
             }
         }

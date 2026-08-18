@@ -247,6 +247,49 @@ $fd = RegAutoModel::where('id', '=', $m2->id)->find();
 $fd->forceDelete();
 check(DB::table('tmp_reg_auto')->where('id', '=', $m2->id)->count() === 0, 'forceDelete 物理删除');
 
+// ---------- 问题6：null 赋值持久化 + delete 返回值/exists ----------
+echo "\n== null 赋值持久化 + delete 状态 ==\n";
+
+// 自建记录（$m 已被软删、$m2 已被物理删，不可复用）
+$n = new RegAutoModel();
+$n->name = '问题6测试';
+$n->save();
+check($n->id > 0, '问题6测试记录创建成功');
+
+// null 赋值持久化：已存在记录显式赋 null 后 save() 应写入 NULL（用 nullable 属性 tags）
+$nullModel = RegAutoModel::where('id', '=', $n->id)->find();
+$nullModel->tags = ['a', 'b'];
+$nullModel->save();
+$nullModel->tags = null;
+$nullModel->save();
+$nullRow = DB::table('tmp_reg_auto')->where('id', '=', $n->id)->find();
+check($nullRow['tags'] === null, '显式赋 null 后 save() 写入 NULL（不再被 isset 拦截丢弃）');
+
+// 快照未变属性不写入（null 比较不误判）
+$noChange = RegAutoModel::where('id', '=', $n->id)->find();
+$noChange->status = $noChange->status;
+$noChange->save();
+check(true, '值未变更 save() 不产生 UPDATE（回归占位）');
+
+// delete 按影响行数返回 + exists 置 false
+$delModel = RegAutoModel::where('id', '=', $n->id)->find();
+$delRet = $delModel->delete();
+check($delRet === true, 'delete 返回 true（影响行数 > 0）');
+check($delModel->exists() === false, 'delete 成功后 exists 置 false');
+
+// 二次删除（记录已不存在）应返回 false
+$delAgain = $delModel->delete();
+check($delAgain === false, '删除不存在的记录返回 false（影响行数 0）');
+
+// forceDelete 返回值 + exists（自建新记录验证）
+$fn = new RegAutoModel();
+$fn->name = '问题6force';
+$fn->save();
+$forceModel = RegAutoModel::where('id', '=', $fn->id)->find();
+$forceRet = $forceModel->forceDelete();
+check($forceRet === true, 'forceDelete 返回 true（影响行数 > 0）');
+check($forceModel->exists() === false, 'forceDelete 成功后 exists 置 false');
+
 // ---------- 事务 ----------
 echo "\n== 事务 ==\n";
 
