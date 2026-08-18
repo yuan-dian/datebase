@@ -156,6 +156,20 @@ try {
     check(true, 'fetchSql+paginate 抛 DbException');
 }
 
+$valueSql = DB::table('tmp_reg_auto')->where('id', '>', 0)->fetchSql()->value('name');
+check(is_string($valueSql) && str_contains($valueSql, 'SELECT'), 'fetchSql()->value() 返回 SQL');
+
+$columnSql = DB::table('tmp_reg_auto')->where('id', '>', 0)->fetchSql()->column('name');
+check(is_string($columnSql) && str_contains($columnSql, 'SELECT'), 'fetchSql()->column() 返回 SQL');
+
+try {
+    $gen = DB::table('tmp_reg_auto')->where('id', '>', 0)->fetchSql()->cursor();
+    $gen->current();
+    check(false, 'fetchSql+cursor 应抛异常');
+} catch (\yuandian\Database\Exceptions\DbException) {
+    check(true, 'fetchSql+cursor 抛 DbException');
+}
+
 // ---------- 软删除 ----------
 echo "\n== 软删除 ==\n";
 

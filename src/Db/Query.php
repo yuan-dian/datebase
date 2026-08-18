@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace yuandian\Database\Db;
 
 use PDO;
+use yuandian\Database\Exceptions\DbException;
 
 /**
  * 查询器（Db 层）：仅依赖数据表，返回原生数组，不感知模型。
@@ -94,6 +95,11 @@ class Query extends BaseQuery
         $opts['limit'] = 1;
 
         [$sql, $bind] = $this->builder->select($opts);
+
+        if (!empty($this->options['fetch_sql'])) {
+            return $sql;
+        }
+
         $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
 
         if (empty($rows)) {
@@ -108,9 +114,9 @@ class Query extends BaseQuery
      *
      * @param string $field 字段名
      * @param string $key 以该字段的值作为数组键
-     * @return array
+     * @return array|string 列数据数组；fetchSql 模式返回 SQL
      */
-    public function column(string $field, string $key = ''): array
+    public function column(string $field, string $key = ''): array|string
     {
         $this->ensureTable();
         $this->applyGlobalScopes();
@@ -119,6 +125,11 @@ class Query extends BaseQuery
         $opts['field'] = [$field];
 
         [$sql, $bind] = $this->builder->select($opts);
+
+        if (!empty($this->options['fetch_sql'])) {
+            return $sql;
+        }
+
         $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
 
         if (empty($rows)) {
@@ -141,6 +152,10 @@ class Query extends BaseQuery
     {
         $this->ensureTable();
         $this->applyGlobalScopes();
+
+        if (!empty($this->options['fetch_sql'])) {
+            throw new DbException('fetchSql 模式不支持游标');
+        }
 
         [$sql, $bind] = $this->builder->select($this->options);
         $stmt = $this->connection->getPdo()->prepare($sql);
