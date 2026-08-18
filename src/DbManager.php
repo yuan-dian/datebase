@@ -111,13 +111,16 @@ class DbManager
     {
         $config = is_array($config) ? $config : $this->getConnectionConfig($config);
         $type = $config['type'] ?? 'mysql';
-        return match (strtolower($type)) {
+        $connection = match (strtolower($type)) {
             'mysql' => new Mysql($config),
             'sqlite' => new Sqlite($config),
             'oracle' => new Oracle($config),
             'mongodb' => new Mongo($config),
             default => throw new DbException("不支持的数据库类型: {$type}"),
         };
+        // 注入 DbManager 引用：连接级事件（如 DbManager::listen 注册的 sql 监听）依赖它
+        $connection->setDb($this);
+        return $connection;
     }
 
     public function __call($method, $args)

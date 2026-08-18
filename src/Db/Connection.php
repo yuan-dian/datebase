@@ -19,7 +19,8 @@ abstract class Connection implements ConnectionInterface
 
     public function __construct(array $config)
     {
-        $this->config = $config;
+        // 子类属性声明的默认配置（如 trigger_sql=true）先于构造就位，传入配置仅覆盖默认值
+        $this->config = array_merge($this->config, $config);
     }
 
     // ======================== DbManager 引用 ========================

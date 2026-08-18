@@ -218,7 +218,10 @@ abstract class PDOConnection extends Connection
         $pdo = new PDO($dsn, $username, $password, $params);
 
         $charset = $this->config['charset'] ?? 'utf8mb4';
-        $pdo->exec("SET NAMES '{$charset}'");
+        // SQLite 字符集内建为 UTF-8，不支持 SET NAMES 语句
+        if (($this->config['type'] ?? '') !== 'sqlite') {
+            $pdo->exec("SET NAMES '{$charset}'");
+        }
 
         return $pdo;
     }
