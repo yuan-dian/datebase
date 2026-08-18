@@ -290,6 +290,35 @@ $forceRet = $forceModel->forceDelete();
 check($forceRet === true, 'forceDelete 返回 true（影响行数 > 0）');
 check($forceModel->exists() === false, 'forceDelete 成功后 exists 置 false');
 
+// ---------- insert()/update() 独立语义 ----------
+echo "\n== insert()/update() 独立语义 ==\n";
+
+// insert()：new 模型（exists=false）显式调用强制 INSERT
+$insModel = new RegAutoModel();
+$insModel->name = '独立insert';
+$insModel->insert();
+check($insModel->id > 0, 'insert() 独立方法：new 模型强制插入');
+check($insModel->exists() === true, 'insert() 成功后 exists 置 true');
+check(DB::table('tmp_reg_auto')->where('name', '=', '独立insert')->count() === 1, 'insert() 数据落库');
+
+// update()：已存在记录改字段后显式调用强制 UPDATE
+$upModel = RegAutoModel::where('id', '=', $insModel->id)->find();
+$upModel->status = 55;
+$upModel->update();
+check(DB::table('tmp_reg_auto')->where('id', '=', $insModel->id)->where('status', '=', 55)->count() === 1, 'update() 独立方法：显式更新生效');
+
+// 快照同步：update() 后 original 同步，连续 save() 不再重复 UPDATE（update_time 不变）
+$rowAfter = DB::table('tmp_reg_auto')->where('id', '=', $insModel->id)->find();
+sleep(1);
+$upModel->save();
+$rowAfter2 = DB::table('tmp_reg_auto')->where('id', '=', $insModel->id)->find();
+check($rowAfter2['update_time'] === $rowAfter['update_time'], 'update() 后快照同步：连续 save() 不重复 UPDATE');
+
+// update() 强制语义：主键为 null 时返回 false（不因 exists=false 走 INSERT）
+$fakeUp = new RegAutoModel();
+$fakeUp->name = '无主键';
+check($fakeUp->update() === false, 'update() 主键为 null 返回 false');
+
 // ---------- 事务 ----------
 echo "\n== 事务 ==\n";
 

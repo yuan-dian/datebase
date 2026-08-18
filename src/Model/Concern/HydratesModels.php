@@ -54,7 +54,7 @@ trait HydratesModels
         }
 
         // 填充原始数据快照（dirty 检测基准）：存属性回读值（类型已由属性声明转换），
-        // JSON 列编码为字符串，与 getDirtyData 的比较基准保持一致
+        // JSON 列编码为字符串，与 getUpdateData 的比较基准保持一致
         $original = [];
         foreach ($columnMap as $prop => $column) {
             if (!isset($model->$prop)) {

@@ -198,6 +198,17 @@ $user->save();
 echo $user->id; // 主键自动回填
 ```
 
+`save()` 是便捷入口：新模型（未持久化）走 INSERT，已持久化模型走 UPDATE。如需强制语义，可显式调用 `insert()` 或 `update()`：
+
+```php
+$user = new User();
+$user->userName = '李四';
+$user->insert();  // 强制 INSERT（忽略当前持久化状态，所有非 null 属性写入）
+
+$user->userName = '王五';
+$user->update();  // 强制 UPDATE（忽略当前持久化状态，仅写入与快照不同的字段）
+```
+
 ### 查询
 
 ```php
@@ -218,6 +229,8 @@ $user = User::whereEqual('id', 1)->find();
 $user->userName = '李四';
 $user->save();
 ```
+
+`update()` 基于快照做脏数据检测：仅写入与快照不同的字段（显式赋 `null` 会写入 NULL 清空字段），未改动的字段不产生 UPDATE；更新成功后同步快照，连续调用 `save()` 不会重复执行 UPDATE。
 
 ### 删除
 

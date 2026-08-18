@@ -96,17 +96,37 @@ abstract class Model
     // ===================== CRUD =====================
 
     /**
-     * 保存模型（INSERT 或 UPDATE）
+     * 保存模型（INSERT 或 UPDATE 便捷入口）
+     *
+     * 按当前状态自动路由：已存在（hydrate/insert 成功过）走 update()，否则走 insert()。
      */
     public function save(): bool
     {
-        $data = $this->getDirtyData();
-
         if ($this->exists) {
-            return $this->doUpdate($data);
+            return $this->update();
         }
 
-        return $this->doInsert($data);
+        return $this->insert();
+    }
+
+    /**
+     * 强制新增语义：所有非 null 属性写入，忽略当前 exists 状态。
+     *
+     * 显式赋 null 的属性不写入（沿用数据库默认值）；成功后 exists 置 true 并同步快照。
+     */
+    public function insert(): bool
+    {
+        return $this->doInsert($this->getInsertData());
+    }
+
+    /**
+     * 强制更新语义：仅写入与快照不同的字段（dirty 检测），忽略当前 exists 状态。
+     *
+     * 主键为 null 时返回 false；成功后同步快照，避免连续 save() 重复 UPDATE。
+     */
+    public function update(): bool
+    {
+        return $this->doUpdate($this->getUpdateData());
     }
 
     /**
@@ -350,7 +370,7 @@ abstract class Model
 
 
             // 关联属性不是数据库列：不进入 fields（columnMap），
-            // 避免 getDirtyData 把已加载的关联对象当列值写入数据库
+            // 避免 getUpdateData 把已加载的关联对象当列值写入数据库
             $relation = self::parseRelations($prop);
             if ($relation) {
                 $relations[$propName] = $relation;
@@ -586,8 +606,15 @@ abstract class Model
         $pkProp = static::getPkProperty();
         $pkVal = $this->$pkProp ?? null;
 
-        if ($pkVal === null) {
+        // 主键无效（null/0/''）视为未持久化的模型，拒绝 UPDATE
+        if (empty($pkVal)) {
             return false;
+        }
+
+        // 主键永不作为 SET 字段写入（防止 UPDATE 误改主键列）
+        unset($data[static::getPkColumn()]);
+        if (empty($data)) {
+            return true;
         }
         $autoWriteTime = static::getAutoWriteTime();
         if ($autoWriteTime && $autoWriteTime->enabled && $autoWriteTime->updateTime !== false && !isset($data[$autoWriteTime->updateTime])) {
@@ -603,16 +630,18 @@ abstract class Model
         $query->where(static::getPkColumn(), '=', $pkVal);
         $query->update($data);
 
+        // 同步快照：避免连续 save() 将已写字段再次判定为 dirty，重复执行 UPDATE
+        $this->original = array_merge($this->original, $data);
+
         return true;
     }
 
     /**
-     * 获取脏数据（仅返回已修改的字段）
+     * 获取新增数据：所有非 null 属性（null 表示沿用数据库默认值）。
      *
-     * null 语义：显式赋 null 的属性参与 dirty 比较（快照非 null → 写入 NULL 清空字段）；
      * 属性未赋值（保持默认值）不参与——用 property_exists 而非 isset，避免 null 被误判为未赋值。
      */
-    protected function getDirtyData(): array
+    protected function getInsertData(): array
     {
         $data = [];
         $columnMap = static::getColumnMap();
@@ -630,15 +659,39 @@ abstract class Model
                 $value = static::castToJson($value);
             }
 
-            // 新记录：所有非 null 属性都写入（null 表示沿用数据库默认值）
-            if (!$this->exists) {
-                if ($value !== null) {
-                    $data[$column] = $value;
-                }
+            // 新增语义：所有非 null 属性都写入（null 表示沿用数据库默认值）
+            if ($value !== null) {
+                $data[$column] = $value;
+            }
+        }
+        return $data;
+    }
+
+    /**
+     * 获取更新数据：仅返回与快照不同的字段（dirty 检测）。
+     *
+     * null 语义：显式赋 null 的属性参与 dirty 比较（快照非 null → 写入 NULL 清空字段）；
+     * 属性未赋值（保持默认值）不参与——用 property_exists 而非 isset，避免 null 被误判为未赋值。
+     */
+    protected function getUpdateData(): array
+    {
+        $data = [];
+        $columnMap = static::getColumnMap();
+        $jsonColumns = static::getJsonColumns();
+
+        foreach ($columnMap as $prop => $column) {
+            if (!property_exists($this, $prop)) {
                 continue;
             }
 
-            // 已存在：仅写入变更的属性（null 参与比较，显式赋 null 会写入）
+            $value = $this->$prop;
+
+            // JSON 列：编码为 JSON 字符串
+            if (array_key_exists($prop, $jsonColumns)) {
+                $value = static::castToJson($value);
+            }
+
+            // 更新语义：仅写入变更的属性（null 参与比较，显式赋 null 会写入）
             if (($this->original[$column] ?? null) !== $value) {
                 $data[$column] = $value;
             }
