@@ -78,7 +78,7 @@ abstract class Model
      */
     public static function query(): BaseQuery
     {
-        return (new static())->newQuery();
+        return static::newQueryForClass(static::class);
     }
 
     /**
@@ -95,14 +95,6 @@ abstract class Model
             throw new DbException("Method '{$method}' does not exist on QueryBuilder");
         }
         return $query->{$method}(...$args);
-    }
-
-    /**
-     * @return ModelQuery<static>|MongoModelQuery<static>
-     */
-    public function newQuery(): BaseQuery
-    {
-        return static::newQueryForClass(static::class);
     }
 
     /**
@@ -172,7 +164,7 @@ abstract class Model
             return false;
         }
 
-        $query = $this->newQuery();
+        $query = static::query();
         $query = $query->where(static::getPkColumn(), '=', $pkVal);
 
         $softDelete = static::getSoftDelete();
@@ -204,7 +196,7 @@ abstract class Model
             return false;
         }
 
-        $query = $this->newQuery();
+        $query = static::query();
         $query->withoutGlobalScopes();
         $query->where(static::getPkColumn(), '=', $pkVal);
 
@@ -613,7 +605,7 @@ abstract class Model
         }
 
 
-        $query = $this->newQuery();;
+        $query = static::query();
         $id = $query->insert($data);
 
         // 自增主键回填（SQL 驱动返回 int；Mongo 驱动返回字符串 ID，需兼容）
@@ -656,7 +648,7 @@ abstract class Model
             }
         }
 
-        $query = $this->newQuery();
+        $query = static::query();
         $query->where(static::getPkColumn(), '=', $pkVal);
         $query->update($data);
 
