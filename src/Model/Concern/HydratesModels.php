@@ -56,8 +56,10 @@ trait HydratesModels
         $jsonColumns = $model::getJsonColumns();
 
         foreach ($row as $column => $value) {
-            $propName = $reverseMap[$column] ?? null;
+            // 原样命中（Mysql/Sqlite 小写列）→ 小写兜底（Oracle wrap 强制大写列，如 CREATE_TIME → create_time）
+            $propName = $reverseMap[$column] ?? $reverseMap[strtolower($column)] ?? null;
             // 未命中映射：DB 新增列（不在模型 columnMap 中），camel 兜底并校验属性存在
+            // 注意：camel 兜底保持原样输入，禁止 strtolower——否则 CamelCase 列（UserName → userName）会被破坏
             if ($propName === null) {
                 $propName = StrUtil::camel($column);
                 if (!property_exists($model, $propName)) {

@@ -40,7 +40,8 @@ class Oracle extends PDOConnection
 
         $fields = [];
         foreach ($columns as $column) {
-            $fields[strtolower($column['COLUMN_NAME'])] = [
+            // 列名转大写与 Oracle::wrap 大写输出对齐（结果集行键为大写）
+            $fields[strtoupper($column['COLUMN_NAME'])] = [
                 'type'    => strtolower($column['DATA_TYPE']),
                 'primary' => in_array($column['COLUMN_NAME'], $pkColumns),
                 'autoinc' => false,
