@@ -6,3 +6,6 @@
 .env
 /tests/tmp
 /tests/.phpunit.result.cache
+
+# Sisyphus 工作区工具目录
+.sisyphus/
