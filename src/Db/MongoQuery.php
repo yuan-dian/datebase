@@ -11,6 +11,11 @@ use MongoDB\Driver\WriteConcern;
 use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connector\Mongo as MongoConnection;
 
+/**
+ * MongoDB 查询器（Db 层）
+ *
+ * @extends BaseQuery<array<string, mixed>>
+ */
 class MongoQuery extends BaseQuery
 {
     protected MongoConnection $connection;

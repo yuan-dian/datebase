@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model;
 
+use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Db\Connector\Mongo as MongoConnection;
 use yuandian\Database\Db\MongoQuery;
 use yuandian\Database\Model\Concern\EagerLoadRelations;
@@ -13,7 +14,9 @@ use yuandian\Database\Model\Concern\HydratesModels;
  * MongoDB 模型查询：Mongo 查询器的模型包装，负责 ObjectID 转换、软删除与关联预加载。
  *
  * @template TModel of Model
- * @extends MongoQuery
+ * @extends BaseQuery<TModel>
+ * @mixin \yuandian\Database\Db\Concern\WhereQuery
+ * @mixin \yuandian\Database\Db\Concern\AggregateQuery
  * @date 2026/5/8 上午10:54
  * @author 原点 467490186@qq.com
  */

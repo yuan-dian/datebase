@@ -11,6 +11,8 @@ use yuandian\Database\Exceptions\DbException;
 
 /**
  * 查询基类
+ *
+ * @template TModel 行数据类型（Db 层为 array<string, mixed>；Model 层为具体模型类）
  */
 abstract class BaseQuery
 {

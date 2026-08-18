@@ -12,6 +12,7 @@ use yuandian\Database\Exceptions\DbException;
  *
  * 模型相关能力（水合、软删除、全局作用域、关联预加载）由 Model\ModelQuery 继承后提供。
  *
+ * @extends BaseQuery<array<string, mixed>>
  * @date 2026/5/7 上午11:07
  * @author 原点 467490186@qq.com
  */

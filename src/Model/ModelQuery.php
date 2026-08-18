@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model;
 
+use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Db\Connection;
 use yuandian\Database\Db\Query;
 use yuandian\Database\Model\Concern\EagerLoadRelations;
@@ -13,7 +14,7 @@ use yuandian\Database\Model\Concern\HydratesModels;
  * 模型查询：Db 层查询器的模型包装，负责水合、软删除、全局作用域与关联预加载。
  *
  * @template TModel of Model
- * @extends Query
+ * @extends BaseQuery<TModel>
  * @mixin \yuandian\Database\Db\Concern\WhereQuery
  * @mixin \yuandian\Database\Db\Concern\AggregateQuery
  * @date 2026/5/7 上午11:07

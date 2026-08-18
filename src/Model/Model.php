@@ -32,9 +32,22 @@ use yuandian\Tools\utils\UUIDUtil;
 
 /**
  * Class Model 模型基类
- * @mixin ModelQuery<static>
- * @method static static find()
- * @method static static[] select()
+ *
+ * @template TModel of static
+ * @mixin ModelQuery<TModel>
+ * @method static TModel|null find()
+ * @method static TModel[] select()
+ * @method static int count(string $field = '*')
+ * @method static float sum(string $field)
+ * @method static float avg(string $field)
+ * @method static string|int|float|null min(string $field)
+ * @method static string|int|float|null max(string $field)
+ * @method static mixed value(string $field, string $key = '')
+ * @method static array column(string $field, string $key = '')
+ * @method static int|string insert(array $data)
+ * @method static int insertAll(array $dataList)
+ * @method static int update(array $data)
+ * @method static int delete()
  */
 abstract class Model
 {
@@ -56,16 +69,32 @@ abstract class Model
     // ===================== 静态代理（链式入口）=====================
 
     /**
-     * @return BaseQuery<static>
+     * 显式查询入口：真实静态方法，IDE 友好（返回类型由 PHPDoc 精化）
+     *
+     * 新代码推荐 `Model::query()->where(...)->find()`；存量 `Model::where(...)` 由
+     * __callStatic 代理保持兼容。
+     *
+     * @return ModelQuery<static>|MongoModelQuery<static>
+     */
+    public static function query(): BaseQuery
+    {
+        return (new static())->newQuery();
+    }
+
+    /**
+     * 静态代理（向后兼容保留）：推荐改用 query() 入口
+     *
+     * @param string $method
+     * @param array<int, mixed> $args
+     * @return mixed
      */
     public static function __callStatic(string $method, array $args)
     {
-        $model = new static();
-        $db = $model->newQuery();
-        if (!method_exists($db, $method)) {
+        $query = static::query();
+        if (!method_exists($query, $method)) {
             throw new DbException("Method '{$method}' does not exist on QueryBuilder");
         }
-        return call_user_func_array([$db, $method], $args);
+        return $query->{$method}(...$args);
     }
 
     /**
