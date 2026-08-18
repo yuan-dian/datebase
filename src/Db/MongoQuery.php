@@ -70,7 +70,7 @@ class MongoQuery extends BaseQuery
         return $result[0]['n'] ?? 0;
     }
 
-    public function aggregate(string $aggregate, $field, bool $force = false, bool $one = false): mixed
+    public function aggregate(string $aggregate, $field, bool $force = false, bool $one = false): string|int|float|null
     {
         $result = $this->cmd('aggregate', [strtolower($aggregate), $field]);
         $value = $result[0]['aggregate'] ?? 0;
@@ -79,7 +79,11 @@ class MongoQuery extends BaseQuery
             $value += 0;
         }
 
-        return $value;
+        if (is_int($value) || is_float($value) || is_string($value)) {
+            return $value;
+        }
+
+        return null;
     }
 
     public function multiAggregate(array $aggregate, array $groupBy): array
@@ -302,7 +306,7 @@ class MongoQuery extends BaseQuery
 
     public function getPk(): string
     {
-        return $this->pk ?: $this->connection->getConfig('pk');
+        return $this->connection->getConfig('pk');
     }
 
     public function cursor(): Cursor
@@ -322,7 +326,7 @@ class MongoQuery extends BaseQuery
         $options = $this->options;
 
         if (empty($options['table'])) {
-            $options['table'] = $this->getTable();
+            $options['table'] = $this->options['table'];
         }
 
         foreach (['where', 'data', 'projection', 'filter', 'json', 'with_attr', 'with_relation_attr'] as $name) {
@@ -345,7 +349,7 @@ class MongoQuery extends BaseQuery
         }
 
         if (!isset($options['typeMap'])) {
-            $options['typeMap'] = $this->getConfig('type_map');
+            $options['typeMap'] = $this->connection->getConfig('type_map');
         }
 
         if (!isset($options['limit'])) {
@@ -412,19 +416,9 @@ class MongoQuery extends BaseQuery
     public function find(): array|object|null
     {
         $this->options['limit'] = 1;
-        $filter = $this->builder->buildFilter($this->options);
-        $sort = $this->builder->buildSort($this->options);
-        $projection = $this->builder->buildProjection($this->options);
+        $row = $this->connection->find($this);
 
-        $driverOpts = $this->buildDriverOptions($sort, $projection, 1, null);
-
-        $rows = $this->connection->find($this->options['table'], $filter, $driverOpts);
-
-        if (empty($rows)) {
-            return null;
-        }
-
-        return $rows[0];
+        return $row ?: null;
     }
 
     /**
@@ -432,25 +426,14 @@ class MongoQuery extends BaseQuery
      */
     public function select(): array
     {
-        $filter = $this->builder->buildFilter($this->options);
-        $sort = $this->builder->buildSort($this->options);
-        $projection = $this->builder->buildProjection($this->options);
-
-        $driverOpts = $this->buildDriverOptions(
-            $sort,
-            $projection,
-            $this->options['limit'],
-            $this->options['offset']
-        );
-
-        return $this->connection->find($this->options['table'], $filter, $driverOpts);
+        return $this->connection->select($this);
     }
 
     public function insert(array $data): string
     {
-        $dbData = $this->toSnakeKeys($data);
+        $this->options['data'] = $this->toSnakeKeys($data);
 
-        return $this->connection->insertOne($this->options['table'], $dbData);
+        return (string)$this->connection->insert($this, true);
     }
 
     public function insertAll(array $dataList): int
@@ -460,46 +443,19 @@ class MongoQuery extends BaseQuery
             $dbDataList[] = $this->toSnakeKeys($data);
         }
 
-        return $this->connection->insertMany($this->options['table'], $dbDataList);
+        return $this->connection->insertAll($this, $dbDataList);
     }
 
     public function update(array $data): int
     {
-        $filter = $this->builder->buildFilter($this->options);
-        $dbData = $this->toSnakeKeys($data);
+        $this->options['data'] = $this->toSnakeKeys($data);
 
-        return $this->connection->updateMany($this->options['table'], $filter, $dbData);
+        return $this->connection->update($this);
     }
 
     public function delete(): int
     {
-        $filter = $this->builder->buildFilter($this->options);
-
-        return $this->connection->deleteMany($this->options['table'], $filter);
-    }
-
-    protected function buildDriverOptions(
-        array $sort,
-        ?array $projection,
-        ?int $limit,
-        ?int $offset
-    ): array {
-        $opts = [];
-
-        if (!empty($sort)) {
-            $opts['sort'] = $sort;
-        }
-        if ($projection !== null) {
-            $opts['projection'] = $projection;
-        }
-        if ($limit !== null) {
-            $opts['limit'] = $limit;
-        }
-        if ($offset !== null) {
-            $opts['skip'] = $offset;
-        }
-
-        return $opts;
+        return $this->connection->delete($this);
     }
 
     protected function toSnakeKeys(array $data): array

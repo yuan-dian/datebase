@@ -73,6 +73,27 @@ abstract class BaseQuery
         return $this->options[$name] ?? $default;
     }
 
+    /**
+     * 设置查询选项
+     *
+     * @param string $name 参数名
+     * @param mixed $value 参数值
+     */
+    public function setOption(string $name, mixed $value): void
+    {
+        $this->options[$name] = $value;
+    }
+
+    /**
+     * 移除查询选项
+     *
+     * @param string $name 参数名
+     */
+    public function removeOption(string $name): void
+    {
+        unset($this->options[$name]);
+    }
+
     // ======================== 抽象方法 ========================
 
     /**

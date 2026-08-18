@@ -11,7 +11,7 @@ use yuandian\Database\DbManager;
 abstract class Connection implements ConnectionInterface
 {
     protected array $config;
-    protected ?Builder $builder = null;
+    protected Builder|MongoBuilder|null $builder = null;
     protected ?DbManager $db = null;
 
     /** @var array<string, callable[]> 事件监听器 */

@@ -83,7 +83,7 @@ class Mongo extends Connection
         return $this->getConfig('builder') ?: MongoBuilder::class;
     }
 
-    public function connect(array $config = [], int $linkNum = 0): PDO|static
+    public function connect(array $config = [], int $linkNum = 0): Manager
     {
         if (!isset($this->links[$linkNum])) {
             if (empty($config)) {
@@ -108,7 +108,7 @@ class Mongo extends Connection
 
             $this->links[$linkNum] = new Manager($config['dsn'], $config['params']);
 
-            if (!empty($config['trigger_sql'])) {
+        if (!empty($this->config['trigger_sql'])) {
                 $this->trigger(
                     'CONNECT:[ UseTime:' . number_format(microtime(true) - $startTime, 6) . 's ] ' . $config['dsn']
                 );
@@ -458,8 +458,11 @@ class Mongo extends Connection
             throw new DbException('miss data to insert');
         }
 
-        $bulk = $this->builder->insert($query);
+/** @var MongoBuilder $builder Mongo 连接固定使用 MongoBuilder */
+        $builder = $this->builder;
+        $bulk = $builder->insert($query);
         $writeResult = $this->mongoExecute($query, $bulk);
+
         $result = $writeResult->getInsertedCount();
 
         if ($result) {
@@ -483,7 +486,9 @@ class Mongo extends Connection
 
     public function getLastInsID(\yuandian\Database\Db\BaseQuery $query, ?string $sequence = null)
     {
-        $id = $this->builder->getLastInsID();
+        /** @var MongoBuilder $builder Mongo 连接固定使用 MongoBuilder */
+        $builder = $this->builder;
+        $id = $builder->getLastInsID();
 
         if (is_array($id)) {
             foreach ($id as $key => $item) {
@@ -507,7 +512,9 @@ class Mongo extends Connection
             return 0;
         }
 
-        $bulk = $this->builder->insertAll($query, $dataSet);
+        /** @var MongoBuilder $builder Mongo 连接固定使用 MongoBuilder */
+        $builder = $this->builder;
+        $bulk = $builder->insertAll($query, $dataSet);
         $writeResult = $this->mongoExecute($query, $bulk);
 
         return $writeResult->getInsertedCount();
@@ -517,7 +524,9 @@ class Mongo extends Connection
     {
         $query->parseOptions();
 
-        $bulk = $this->builder->update($query);
+        /** @var MongoBuilder $builder Mongo 连接固定使用 MongoBuilder */
+        $builder = $this->builder;
+        $bulk = $builder->update($query);
         $writeResult = $this->mongoExecute($query, $bulk);
 
         return $writeResult->getModifiedCount();
@@ -527,7 +536,9 @@ class Mongo extends Connection
     {
         $query->parseOptions();
 
-        $bulk = $this->builder->delete($query);
+        /** @var MongoBuilder $builder Mongo 连接固定使用 MongoBuilder */
+        $builder = $this->builder;
+        $bulk = $builder->delete($query);
         $writeResult = $this->mongoExecute($query, $bulk);
 
         return $writeResult->getDeletedCount();
