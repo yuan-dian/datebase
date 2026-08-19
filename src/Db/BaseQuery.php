@@ -198,7 +198,9 @@ abstract class BaseQuery
      */
     public function setInc(string $field, float|int $step = 1): int
     {
-        return $this->inc($field, $step)->update();
+        $this->inc($field, $step);
+
+        return $this->update($this->options['data'] ?? []);
     }
 
     /**

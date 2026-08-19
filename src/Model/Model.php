@@ -582,6 +582,9 @@ abstract class Model
             if ($pkValue !== null) {
                 $data[$pkColumn] = $pkValue;
                 $this->$pkProp = $pkValue;
+            } elseif ($pkType === IdType::AUTO) {
+                // AUTO：移除残留的主键 0 值，交由数据库自增（避免显式 id=0 导致二次插入 UNIQUE 冲突）
+                unset($data[$pkColumn]);
             }
         }
         $autoWriteTime = static::getAutoWriteTime();
@@ -611,6 +614,7 @@ abstract class Model
         // 自增主键回填（SQL 驱动返回 int；Mongo 驱动返回字符串 ID，需兼容）
         if ($pkType === IdType::AUTO && (int)$id > 0) {
             $this->$pkProp = $id;
+            $data[$pkColumn] = $id; // 回填快照，保持 original 含主键
         }
 
         $this->exists = true;
