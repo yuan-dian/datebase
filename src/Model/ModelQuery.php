@@ -151,10 +151,18 @@ class ModelQuery extends Query
 
     public function delete(): int
     {
-        $this->applyGlobalScopes();
-
-        // forceDelete() / withoutGlobalScopes() 时跳过软删除，执行物理删除
+        // forceDelete() / withoutGlobalScopes() 时跳过软删除作用域，执行物理删除。
+        // 判断必须先于 applyGlobalScopes()：否则软删过滤已写入 WHERE，
+        // 已软删行（deleted_time 非空）匹配不到，force 物理删除将命中 0 行。
         $force = !empty($this->options['force_delete']) || $this->withoutScopes;
+
+        if (!$force) {
+            $this->applyGlobalScopes();
+        } else {
+            // 阻断 parent::delete()（Query::delete）内部 $this->applyGlobalScopes()
+            // 的动态派发：否则软删过滤会在物理删除 SQL 前被重新应用
+            $this->scopesApplied = true;
+        }
 
         $softDelete = $this->modelClass::getSoftDelete();
         if (!$force && $softDelete && $softDelete->enabled) {
