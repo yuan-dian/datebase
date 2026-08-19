@@ -8,6 +8,7 @@ use yuandian\Database\Attribute\HasMany;
 use yuandian\Database\Attribute\HasManyThrough;
 use yuandian\Database\Attribute\HasOne;
 use yuandian\Database\Attribute\HasOneThrough;
+use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Model\Model;
 use yuandian\Database\Model\Relations\HasManyRelation;
 use yuandian\Database\Model\Relations\HasManyThroughRelation;
@@ -80,10 +81,10 @@ trait EagerLoadRelations
             $attr = $info['attribute'];
 
             $loadedInstances[$name] = match ($info['type']) {
-                'HasOne' => $this->eagerLoadHasOne($models, $name, $attr),
-                'HasMany' => $this->eagerLoadHasMany($models, $name, $attr),
-                'HasOneThrough' => $this->eagerLoadHasOneThrough($models, $name, $attr),
-                'HasManyThrough' => $this->eagerLoadHasManyThrough($models, $name, $attr),
+                RelationType::HasOne => $this->eagerLoadHasOne($models, $name, $attr),
+                RelationType::HasMany => $this->eagerLoadHasMany($models, $name, $attr),
+                RelationType::HasOneThrough => $this->eagerLoadHasOneThrough($models, $name, $attr),
+                RelationType::HasManyThrough => $this->eagerLoadHasManyThrough($models, $name, $attr),
                 default => [],
             };
         }

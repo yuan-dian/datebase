@@ -17,6 +17,7 @@ use yuandian\Database\Attribute\TableId;
 use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Db\Connector\Mongo;
 use yuandian\Database\Enums\IdType;
+use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Facade\DB;
 use yuandian\Database\Model\Relations\HasManyRelation;
@@ -311,13 +312,13 @@ abstract class Model
         $attr = $info['attribute'];
 
         $result = match ($info['type']) {
-            'HasOne' => (new HasOneRelation($this, $attr->model, $attr->foreignKey, $attr->localKey))->getResults(),
-            'HasMany' => (new HasManyRelation($this, $attr->model, $attr->foreignKey, $attr->localKey))->getResults(),
-            'HasOneThrough' => (new HasOneThroughRelation(
+            RelationType::HasOne => (new HasOneRelation($this, $attr->model, $attr->foreignKey, $attr->localKey))->getResults(),
+            RelationType::HasMany => (new HasManyRelation($this, $attr->model, $attr->foreignKey, $attr->localKey))->getResults(),
+            RelationType::HasOneThrough => (new HasOneThroughRelation(
                 $this, $attr->model, $attr->through,
                 $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
             ))->getResults(),
-            'HasManyThrough' => (new HasManyThroughRelation(
+            RelationType::HasManyThrough => (new HasManyThroughRelation(
                 $this, $attr->model, $attr->through,
                 $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
             ))->getResults(),
@@ -519,10 +520,10 @@ abstract class Model
     protected static function parseRelations(PropertyReflection $prop): array
     {
         $map = [
-            HasOne::class         => 'HasOne',
-            HasMany::class        => 'HasMany',
-            HasOneThrough::class  => 'HasOneThrough',
-            HasManyThrough::class => 'HasManyThrough',
+            HasOne::class         => RelationType::HasOne,
+            HasMany::class        => RelationType::HasMany,
+            HasOneThrough::class  => RelationType::HasOneThrough,
+            HasManyThrough::class => RelationType::HasManyThrough,
         ];
 
         foreach ($map as $attrClass => $type) {

@@ -128,6 +128,28 @@ class DbManager
         return call_user_func_array([$this->connect(), $method], $args);
     }
 
+    // ===================== 事务（显式转发，供 TypePHP 静态可见；__call 保留兜底） =====================
+
+    public function transaction(callable $callback): mixed
+    {
+        return $this->connect()->transaction($callback);
+    }
+
+    public function startTrans(): void
+    {
+        $this->connect()->startTrans();
+    }
+
+    public function commit(): void
+    {
+        $this->connect()->commit();
+    }
+
+    public function rollback(): void
+    {
+        $this->connect()->rollback();
+    }
+
     // ===================== 事件监听 =====================
 
     /**
