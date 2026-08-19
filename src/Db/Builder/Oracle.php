@@ -31,12 +31,14 @@ class Oracle extends Builder
 
     protected function parseLimit(?int $limit, ?int $offset): string
     {
+        // Oracle 12c+ 分页语法要求 OFFSET 在 FETCH 之前：
+        // OFFSET n ROWS FETCH NEXT m ROWS ONLY（顺序颠倒会报 ORA-00933）
         $sql = '';
-        if ($limit !== null) {
-            $sql .= ' FETCH FIRST ' . $limit . ' ROWS ONLY';
-        }
         if ($offset !== null) {
             $sql .= ' OFFSET ' . $offset . ' ROWS';
+        }
+        if ($limit !== null) {
+            $sql .= ' FETCH NEXT ' . $limit . ' ROWS ONLY';
         }
         return $sql;
     }
