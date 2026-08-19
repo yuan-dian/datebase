@@ -31,7 +31,6 @@ abstract class BaseQuery
         'join'   => [],
         'group'  => [],
         'having' => [],
-        'with'   => [],
         'lock'   => false,
         'union'       => [],
         'force_delete' => false,
@@ -370,6 +369,7 @@ abstract class BaseQuery
         do {
             $query = $this->newSubQuery();
             $query->options = $this->options;
+            $this->copyExtraState($query);
             $query->options['limit'] = $count;
             $query->options['offset'] = ($page - 1) * $count;
             $query->bind = $this->bind;
@@ -387,6 +387,14 @@ abstract class BaseQuery
         } while (count($results) === $count);
 
         return true;
+    }
+
+    /**
+     * 子查询附加状态拷贝钩子：chunk 分块时除 options 外需同步的状态（模型层预加载名等）。
+     * Db 层无附加状态，默认空实现；Model 层覆写补充。
+     */
+    protected function copyExtraState(BaseQuery $query): void
+    {
     }
 
     /**

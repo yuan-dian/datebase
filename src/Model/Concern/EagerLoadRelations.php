@@ -26,9 +26,12 @@ use yuandian\Tools\utils\StrUtil;
  */
 trait EagerLoadRelations
 {
+    /** @var string[] 待预加载的关联名（模型层专属，不进入 Db 层 options） */
+    protected array $withRelations = [];
+
     public function with(string ...$relations): static
     {
-        $this->options['with'] = array_merge($this->options['with'], $relations);
+        $this->withRelations = array_merge($this->withRelations, $relations);
         return $this;
     }
 

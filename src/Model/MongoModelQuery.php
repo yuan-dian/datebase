@@ -58,8 +58,8 @@ class MongoModelQuery extends MongoQuery
 
         $model = $this->hydrateMongo($row);
 
-        if (!empty($this->options['with'])) {
-            $model->load(...$this->options['with']);
+        if (!empty($this->withRelations)) {
+            $model->load(...$this->withRelations);
         }
 
         return $model;
@@ -75,8 +75,8 @@ class MongoModelQuery extends MongoQuery
             $models[] = $this->hydrateMongo($row);
         }
 
-        if (!empty($this->options['with']) && !empty($models)) {
-            $this->eagerLoadRelations($models, $this->options['with']);
+        if (!empty($this->withRelations) && !empty($models)) {
+            $this->eagerLoadRelations($models, $this->withRelations);
         }
 
         return $models;

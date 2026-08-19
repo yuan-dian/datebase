@@ -53,6 +53,17 @@ class ModelQuery extends Query
     }
 
     /**
+     * chunk 分块时同步预加载名（withRelations 独立于 options，需经钩子拷贝）
+     */
+    protected function copyExtraState(BaseQuery $query): void
+    {
+        /** @var ModelQuery $query chunk 的 newSubQuery 返回 static，运行时必为 ModelQuery */
+        if (!empty($this->withRelations)) {
+            $query->withRelations = $this->withRelations;
+        }
+    }
+
+    /**
      * 字段名转换：属性名（camelCase）→ 列名（snake_case），基于元数据反查。
      *
      * 仅转换已声明的属性名；非属性名（如真实列名、SQL 片段）原样返回。
@@ -93,8 +104,8 @@ class ModelQuery extends Query
 
         $model = $this->hydrate($result);
 
-        if (!empty($this->options['with'])) {
-            $model->load(...$this->options['with']);
+        if (!empty($this->withRelations)) {
+            $model->load(...$this->withRelations);
         }
 
         return $model;
@@ -114,8 +125,8 @@ class ModelQuery extends Query
             $models[] = $this->hydrate($row);
         }
 
-        if (!empty($this->options['with']) && !empty($models)) {
-            $this->eagerLoadRelations($models, $this->options['with']);
+        if (!empty($this->withRelations) && !empty($models)) {
+            $this->eagerLoadRelations($models, $this->withRelations);
         }
 
         return $models;
