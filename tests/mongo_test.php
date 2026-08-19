@@ -274,6 +274,24 @@ try {
     check('模型层 chunk', false, get_class($e) . ': ' . $e->getMessage());
 }
 
+// ======================== 4.1 模型层 order（数组签名 + camelCase 字段） ========================
+
+try {
+    // B2 验证：order() 数组签名（修复前 string 签名下数组传参必 TypeError）
+    $orderArr = MongoTestModel::order(['id' => 'asc'])->select();
+    $idsArr = array_map(fn ($m) => $m->id, $orderArr);
+    $sortedIds = $idsArr;
+    sort($sortedIds);
+    check('order 数组签名可用', count($idsArr) === 5, 'count=' . count($idsArr));
+    check('order 数组签名按 id 升序', $idsArr === $sortedIds, 'ids=' . implode(',', $idsArr));
+
+    // B3 验证：camelCase 字段经 convertFieldName 转 snake_case（修复前按不存在字段排序）
+    $orderCamel = MongoTestModel::order('parentId', 'desc')->select();
+    check('order camelCase 字段不抛错', count($orderCamel) === 5, 'count=' . count($orderCamel));
+} catch (Throwable $e) {
+    check('模型层 order 增强', false, get_class($e) . ': ' . $e->getMessage());
+}
+
 // ======================== 5. 清理 ========================
 section('5. 清理');
 dropCollection($conn);
