@@ -142,7 +142,10 @@ class Query extends BaseQuery
         $this->applyGlobalScopes();
 
         [$sql, $bind] = $this->builder->select($this->options);
-        $stmt = $this->connection->getPdo()->prepare($sql);
+
+        // 未连接时 getPdo() 返回 false，直接 prepare() 会 fatal；先惰性建立连接
+        $pdo = $this->connection->getPdo() ?: $this->connection->connect();
+        $stmt = $pdo->prepare($sql);
         $stmt->execute(array_merge($bind, $this->bind));
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
