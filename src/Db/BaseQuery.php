@@ -332,6 +332,11 @@ abstract class BaseQuery
 
     // ======================== 链式方法 — 作用域 ========================
 
+    /**
+     * 移除指定名称的全局作用域
+     *
+     * 内置软删作用域名：softDelete。其他名称不匹配任何作用域时保持原过滤。
+     */
     public function withoutGlobalScope(string $scope): static
     {
         $this->removedScopes[] = $scope;

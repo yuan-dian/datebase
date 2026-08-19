@@ -180,7 +180,8 @@ class ModelQuery extends Query
 
         $this->scopesApplied = true;
         $softDelete = $this->modelClass::getSoftDelete();
-        if ($softDelete && $softDelete->enabled) {
+        // withoutGlobalScope('softDelete') 可单独移除软删作用域；其他名字不匹配保持过滤
+        if ($softDelete && $softDelete->enabled && !in_array('softDelete', $this->removedScopes, true)) {
             $this->whereNull($softDelete->column);
         }
     }
