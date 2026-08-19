@@ -9,11 +9,11 @@ use yuandian\Database\Db\Raw;
 
 class Mysql extends Builder
 {
-    protected string $selectSql = 'SELECT%DISTINCT%%EXTRA% %FIELD% FROM %TABLE%%FORCE%%JOIN%%WHERE%%GROUP%%HAVING%%ORDER%%LIMIT%%UNION% %LOCK%%COMMENT%';
+    protected string $selectSql = 'SELECT%DISTINCT% %FIELD% FROM %TABLE%%FORCE%%JOIN%%WHERE%%GROUP%%HAVING%%ORDER%%LIMIT%%UNION% %LOCK%%COMMENT%';
 
-    protected string $insertSql = 'INSERT%EXTRA% INTO %TABLE% (%FIELD%) VALUES (%DATA%) %COMMENT%';
+    protected string $insertSql = 'INSERT INTO %TABLE% (%FIELD%) VALUES (%DATA%) %COMMENT%';
 
-    protected string $updateSql = 'UPDATE%EXTRA% %TABLE% SET %SET%%JOIN%%WHERE%%ORDER%%LIMIT% %LOCK%%COMMENT%';
+    protected string $updateSql = 'UPDATE %TABLE% SET %SET%%JOIN%%WHERE%%ORDER%%LIMIT% %LOCK%%COMMENT%';
 
     public function wrap(string $value): string
     {

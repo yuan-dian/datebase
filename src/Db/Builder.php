@@ -16,7 +16,6 @@ class Builder extends BaseBuilder
         $sql = strtr($this->selectSql, [
             '%TABLE%'   => $this->parseTable($options['table'], $options['alias'] ?? null),
             '%DISTINCT%' => $this->parseDistinct($options['distinct'] ?? false),
-            '%EXTRA%'   => $this->parseExtra($options['extra'] ?? ''),
             '%FIELD%'   => $this->parseField($options['field'] ?? ['*']),
             '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
             '%WHERE%'   => $this->parseWhere($options['where'] ?? [], $bind),
@@ -33,7 +32,7 @@ class Builder extends BaseBuilder
         return [trim($sql), $bind];
     }
 
-    public function insert(string $table, array $data): array
+    public function insert(string $table, array $data, ?string $comment = null): array
     {
         $fields = array_keys($data);
         $values = array_values($data);
@@ -50,17 +49,16 @@ class Builder extends BaseBuilder
         }
 
         $sql = strtr($this->insertSql, [
-            '%EXTRA%'   => '',
             '%TABLE%'   => $this->parseTable($table),
             '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $fields)),
             '%DATA%'    => implode(', ', $placeholders),
-            '%COMMENT%' => '',
+            '%COMMENT%' => $this->parseComment($comment ?? ''),
         ]);
 
         return [$sql, $bind];
     }
 
-    public function insertAll(string $table, array $dataList): array
+    public function insertAll(string $table, array $dataList, ?string $comment = null): array
     {
         if (empty($dataList)) {
             return ['', []];
@@ -85,11 +83,10 @@ class Builder extends BaseBuilder
         }
 
         $sql = strtr($this->insertAllSql, [
-            '%EXTRA%'   => '',
             '%TABLE%'   => $this->parseTable($table),
             '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $fields)),
             '%DATA%'    => implode(', ', $values),
-            '%COMMENT%' => '',
+            '%COMMENT%' => $this->parseComment($comment ?? ''),
         ]);
 
         return [$sql, $bind];
@@ -133,7 +130,6 @@ class Builder extends BaseBuilder
         }
 
         $sql = strtr($this->insertAllSql, [
-            '%EXTRA%'   => '',
             '%TABLE%'   => $this->parseTable($table),
             '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $keys)),
             '%DATA%'    => implode(', ', $rows),
@@ -162,7 +158,6 @@ class Builder extends BaseBuilder
         $whereBind = [];
         $sql = strtr($this->updateSql, [
             '%TABLE%'   => $this->parseTable($table),
-            '%EXTRA%'   => $this->parseExtra($options['extra'] ?? ''),
             '%SET%'     => implode(', ', $set),
             '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
             '%WHERE%'   => $this->parseWhere($where, $whereBind),
@@ -181,7 +176,6 @@ class Builder extends BaseBuilder
 
         $sql = strtr($this->deleteSql, [
             '%TABLE%'   => $this->parseTable($table),
-            '%EXTRA%'   => $this->parseExtra($options['extra'] ?? ''),
             '%USING%'   => '',
             '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
             '%WHERE%'   => $this->parseWhere($where, $bind),
@@ -580,11 +574,6 @@ class Builder extends BaseBuilder
     protected function parseDistinct(bool $distinct): string
     {
         return $distinct ? ' DISTINCT' : '';
-    }
-
-    protected function parseExtra(string $extra): string
-    {
-        return $extra ? ' ' . $extra : '';
     }
 
     protected function parseForce(string|array|false $force): string

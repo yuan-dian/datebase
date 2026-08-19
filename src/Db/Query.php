@@ -154,7 +154,7 @@ class Query extends BaseQuery
     {
         $this->ensureTable();
 
-        [$sql, $bind] = $this->builder->insert($this->options['table'], $data);
+        [$sql, $bind] = $this->builder->insert($this->options['table'], $data, $this->options['comment'] ?? null);
         $this->connection->execute($sql, $bind);
 
         return (int)$this->connection->getLastInsID($this);
@@ -169,7 +169,7 @@ class Query extends BaseQuery
 
         $this->ensureTable();
 
-        [$sql, $bind] = $this->builder->insertAll($this->options['table'], $dataList);
+        [$sql, $bind] = $this->builder->insertAll($this->options['table'], $dataList, $this->options['comment'] ?? null);
         $this->connection->execute($sql, $bind);
 
         return count($dataList);
@@ -183,7 +183,8 @@ class Query extends BaseQuery
         [$sql, $bind] = $this->builder->update(
             $this->options['table'],
             $data,
-            $this->options['where']
+            $this->options['where'],
+            $this->options
         );
 
         return $this->connection->execute($sql, array_merge($bind, $this->bind));
@@ -199,7 +200,8 @@ class Query extends BaseQuery
 
         [$sql, $bind] = $this->builder->delete(
             $this->options['table'],
-            $this->options['where']
+            $this->options['where'],
+            $this->options
         );
 
         return $this->connection->execute($sql, array_merge($bind, $this->bind));
@@ -214,7 +216,8 @@ class Query extends BaseQuery
 
         [$sql, $bind] = $this->builder->delete(
             $this->options['table'],
-            $this->options['where']
+            $this->options['where'],
+            $this->options
         );
 
         return $this->connection->execute($sql, array_merge($bind, $this->bind));

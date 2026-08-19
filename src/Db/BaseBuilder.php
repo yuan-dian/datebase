@@ -30,15 +30,15 @@ abstract class BaseBuilder
         'parseColumn'      => ['COLUMN'],
     ];
 
-    protected string $selectSql = 'SELECT%DISTINCT%%EXTRA% %FIELD% FROM %TABLE%%FORCE%%JOIN%%WHERE%%GROUP%%HAVING%%ORDER%%LIMIT%%UNION% %LOCK%%COMMENT%';
+    protected string $selectSql = 'SELECT%DISTINCT% %FIELD% FROM %TABLE%%FORCE%%JOIN%%WHERE%%GROUP%%HAVING%%ORDER%%LIMIT%%UNION% %LOCK%%COMMENT%';
 
-    protected string $insertSql = 'INSERT%EXTRA% INTO %TABLE% (%FIELD%) VALUES (%DATA%) %COMMENT%';
+    protected string $insertSql = 'INSERT INTO %TABLE% (%FIELD%) VALUES (%DATA%) %COMMENT%';
 
-    protected string $insertAllSql = 'INSERT%EXTRA% INTO %TABLE% (%FIELD%) VALUES %DATA% %COMMENT%';
+    protected string $insertAllSql = 'INSERT INTO %TABLE% (%FIELD%) VALUES %DATA% %COMMENT%';
 
-    protected string $updateSql = 'UPDATE%EXTRA% %TABLE% SET %SET%%JOIN%%WHERE%%ORDER%%LIMIT% %LOCK%%COMMENT%';
+    protected string $updateSql = 'UPDATE %TABLE% SET %SET%%JOIN%%WHERE%%ORDER%%LIMIT% %LOCK%%COMMENT%';
 
-    protected string $deleteSql = 'DELETE%EXTRA% FROM %TABLE%%USING%%JOIN%%WHERE%%ORDER%%LIMIT% %LOCK%%COMMENT%';
+    protected string $deleteSql = 'DELETE FROM %TABLE%%USING%%JOIN%%WHERE%%ORDER%%LIMIT% %LOCK%%COMMENT%';
 
     public function __construct(Connection $connection)
     {
@@ -64,7 +64,6 @@ abstract class BaseBuilder
     abstract protected function parseLock(bool|string $lock): string;
     abstract protected function parseComment(string $comment): string;
     abstract protected function parseDistinct(bool $distinct): string;
-    abstract protected function parseExtra(string $extra): string;
     abstract protected function parseForce(string|array|false $force): string;
 
     abstract public function wrapTable(string $table): string;

@@ -34,6 +34,7 @@ abstract class BaseQuery
         'lock'   => false,
         'union'       => [],
         'force_delete' => false,
+        'comment' => '',
     ];
 
     protected array $bind = [];
@@ -272,6 +273,17 @@ abstract class BaseQuery
     public function alias(string $alias): static
     {
         $this->options['alias'] = $alias;
+        return $this;
+    }
+
+    /**
+     * SQL 内联注释（select/insert/insertAll/update/delete 均生效；Mongo 映射 $comment 修饰符）
+     *
+     * 用于慢查询日志/监控定位 SQL 来源。内部自动截断注释闭合符防注入。
+     */
+    public function comment(string $comment): static
+    {
+        $this->options['comment'] = $comment;
         return $this;
     }
 
