@@ -211,8 +211,71 @@ try {
     check('模型层 CRUD', false, get_class($e) . ': ' . $e->getMessage());
 }
 
-// ======================== 4. 清理 ========================
-section('4. 清理');
+// ======================== 4. 模型层 chunk（with 预加载 + offset 分页） ========================
+section('4. 模型层 chunk（with 预加载 + offset 分页）');
+dropCollection($conn);
+
+try {
+    // 数据：3 父 + 2 子（父 id 已知，子 parentId 指向父）
+    $parents = [];
+    for ($i = 1; $i <= 3; $i++) {
+        $p = new MongoTestModel();
+        $p->name = "chunk_parent_{$i}";
+        $p->status = 1;
+        $p->save();
+        $parents[] = $p->id;
+    }
+    $c1 = new MongoTestModel();
+    $c1->name = 'chunk_child_1';
+    $c1->status = 1;
+    $c1->parentId = $parents[0];
+    $c1->save();
+    $c2 = new MongoTestModel();
+    $c2->name = 'chunk_child_2';
+    $c2->status = 1;
+    $c2->parentId = $parents[0];
+    $c2->save();
+
+    // R2 验证：with('children')->chunk() 每块应携带预加载（修复前 copyExtraState 缺失，children 为空数组）
+    $r2Loaded = false;
+    MongoTestModel::with('children')->chunk(10, function (array $items) use (&$r2Loaded): bool {
+        foreach ($items as $item) {
+            if (!empty($item->children)) {
+                $r2Loaded = true;
+            }
+        }
+        return true;
+    });
+    check('with(children)->chunk 预加载生效', $r2Loaded === true);
+
+    $r2Count = 0;
+    MongoTestModel::with('children')->chunk(10, function (array $items) use (&$r2Count): bool {
+        $r2Count = max($r2Count, count($items[0]->children ?? []));
+        return true;
+    });
+    check('首块 children 数量正确', $r2Count === 2, "children={$r2Count}");
+
+    // N6 验证：order->chunk(2) 应分 3 页取完 5 条（修复前 offset 忽略→每页同数据→死循环）
+    $pages = 0;
+    $total = 0;
+    $seen = [];
+    MongoTestModel::order('id', 'asc')->chunk(2, function (array $items) use (&$pages, &$total, &$seen): bool {
+        $pages++;
+        $total += count($items);
+        foreach ($items as $item) {
+            $seen[$item->id] = true;
+        }
+        return $pages < 20; // 防死循环保护：修复前会无限分页
+    });
+    check('chunk 分页页数正确（修复前死循环至 20 页保护）', $pages === 3, "pages={$pages}");
+    check('chunk 累计条数正确（修复前每页重复同 2 条）', $total === 5, "total={$total}");
+    check('chunk 无重复记录（修复前同页数据重复）', count($seen) === 5, 'seen=' . count($seen));
+} catch (Throwable $e) {
+    check('模型层 chunk', false, get_class($e) . ': ' . $e->getMessage());
+}
+
+// ======================== 5. 清理 ========================
+section('5. 清理');
 dropCollection($conn);
 
 echo PHP_EOL . str_repeat('=', 60) . PHP_EOL;

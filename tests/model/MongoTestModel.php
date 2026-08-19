@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace yuandian\Database\Tests\model;
 
 use yuandian\Database\Attribute\Connection;
+use yuandian\Database\Attribute\HasMany;
 use yuandian\Database\Attribute\Table;
 use yuandian\Database\Attribute\TableId;
 use yuandian\Database\Enums\IdType;
@@ -33,4 +34,9 @@ class MongoTestModel extends Model
     public ?string $remark = null;
 
     public string $createTime = '';
+
+    public int $parentId = 0;
+
+    #[HasMany(MongoTestModel::class, 'parentId', 'id')]
+    public array $children = [];
 }
