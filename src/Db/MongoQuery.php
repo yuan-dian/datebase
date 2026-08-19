@@ -282,12 +282,20 @@ class MongoQuery extends BaseQuery
         return $this;
     }
 
-    public function order(string $field, string $direction = 'asc'): static
+    /**
+     * 排序
+     *
+     * @param string|array<string,int> $field 单字段名，或 [字段 => 1|-1|'asc'|'desc'] 多字段
+     */
+    public function order(string|array $field, string $direction = 'asc'): static
     {
-        // pk_convert_id 时主键存 _id：sort 键 'id' 需转 '_id'，
-        // 否则 Mongo 对缺失字段排序行为怪异，skip/limit 分页会错乱（重复/丢行）
-        $convert = fn (string $key): string =>
-            'id' === $key && $this->connection->getConfig('pk_convert_id') ? '_id' : $key;
+        // 字段名统一走 convertFieldName（模型层 camelCase→snake_case，Db 层原样）；
+        // pk_convert_id 时主键存 _id：'id' 再转 '_id'，否则 Mongo 对缺失字段排序
+        // 行为怪异，skip/limit 分页会错乱（重复/丢行）
+        $convert = function (string $key): string {
+            $key = $this->convertFieldName($key);
+            return 'id' === $key && $this->connection->getConfig('pk_convert_id') ? '_id' : $key;
+        };
 
         if (is_array($field)) {
             $this->options['sort'] = [];

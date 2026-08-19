@@ -367,9 +367,15 @@ abstract class BaseQuery
 
     /**
      * 联合查询
+     *
+     * @param BaseQuery|array|string $query 子查询：查询器、options 数组或原始 SQL 字符串
+     * @param string $type 仅接受 UNION / UNION ALL，其余值回退为 UNION（防 SQL 注入）
      */
-    public function union(BaseQuery|array $query, string $type = 'UNION'): static
+    public function union(BaseQuery|array|string $query, string $type = 'UNION'): static
     {
+        // 白名单校验：type 会原样拼进 SQL，非法值一律回退默认，防注入
+        $type = in_array(strtoupper($type), ['UNION', 'UNION ALL'], true) ? strtoupper($type) : 'UNION';
+
         $this->options['union'][] = [
             'query' => $query,
             'type'  => $type,

@@ -536,19 +536,30 @@ class Builder extends BaseBuilder
 
         $sql = '';
         foreach ($union as $u) {
+            // 二次防御：即使 options 被直接写入，type 也仅接受 UNION / UNION ALL
             $type = $u['type'] ?? 'UNION';
+            $type = preg_match('/^UNION( ALL)?$/i', $type) ? strtoupper($type) : 'UNION';
+
             if ($u['query'] instanceof BaseQuery) {
                 $subSql = $this->select($u['query']->getOptions());
                 $sub = $subSql[0];
                 $subOpts = $u['query']->getOptions();
                 if (!empty($subOpts['order']) || !empty($subOpts['limit'])) {
-                    $sub = 'SELECT * FROM ( ' . $sub . ' )';
+                    // 子查询自带 ORDER/LIMIT 时用派生表包裹：UNION 后的 ORDER/LIMIT
+                    // 会被解释为整体排序分页（SQLite/MySQL/Oracle 通用）
+                    $sub = 'SELECT * FROM ( ' . $sub . ' ) AS t';
                 }
                 $sql .= ' ' . $type . ' ' . $sub;
                 // 合并子查询的绑定参数，避免 UNION 子查询丢失 bind
                 $bind = array_merge($bind, $subSql[1]);
             } elseif (is_string($u['query'])) {
-                $sql .= ' ' . $type . ' ' . $u['query'];
+                // string 分支：SQLite 不支持 UNION 分支括号（UNION (SELECT ...) 语法错），
+                // 自带 ORDER/LIMIT 时与子查询分支一致用派生表限定作用域
+                $sub = $u['query'];
+                if (preg_match('/\bORDER\s+BY\b|\bLIMIT\b/i', $sub)) {
+                    $sub = 'SELECT * FROM ( ' . $sub . ' ) AS t';
+                }
+                $sql .= ' ' . $type . ' ' . $sub;
             }
         }
 
