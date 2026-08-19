@@ -344,7 +344,10 @@ abstract class PDOConnection extends Connection
             } elseif (is_numeric($this->config['slave_no'] ?? '')) {
                 $r = (int)$this->config['slave_no'];
             } else {
-                $r = mt_rand($this->config['master_num'] ?? 1, count($config['hostname']) - 1);
+                // 防御：master_num 越界时 mt_rand(min > max) 抛 ValueError
+                $total = count($config['hostname']);
+                $from  = min($this->config['master_num'] ?? 1, max(0, $total - 1));
+                $r = mt_rand($from, max($from, $total - 1));
             }
         } else {
             $r = mt_rand(0, count($config['hostname']) - 1);
@@ -599,13 +602,19 @@ abstract class PDOConnection extends Connection
                 $value = '0';
             }
 
-            $sql = is_numeric($key)
-                ? substr_replace($sql, $value, strpos($sql, '?'), 1)
-                : str_replace(
+            if (is_numeric($key)) {
+                // 防御：bind 数量多于 SQL 占位符时 strpos 返回 false，跳过避免位置 0 错误替换
+                $pos = strpos($sql, '?');
+                if ($pos !== false) {
+                    $sql = substr_replace($sql, $value, $pos, 1);
+                }
+            } else {
+                $sql = str_replace(
                     [':' . $key . ' ', ':' . $key . ',', ':' . $key . ')'],
                     [$value . ' ', $value . ',', $value . ')'],
                     $sql . ' '
                 );
+            }
         }
 
         return rtrim($sql);

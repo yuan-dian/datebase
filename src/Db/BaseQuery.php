@@ -463,6 +463,9 @@ abstract class BaseQuery
         ?int $page = null,
         string $pageName = 'page'
     ): Paginator {
+        // 防御：每页条数必须 >= 1，避免 DivisionByZeroError
+        $listRows = max(1, $listRows);
+
         $currentPage = $this->getCurrentPage($page, $pageName);
 
         if ($simple) {

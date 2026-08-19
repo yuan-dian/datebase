@@ -33,6 +33,9 @@ class Oracle extends Builder
     {
         // Oracle 12c+ 分页语法要求 OFFSET 在 FETCH 之前：
         // OFFSET n ROWS FETCH NEXT m ROWS ONLY（顺序颠倒会报 ORA-00933）
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('limit 不能为负数，当前值：' . $limit);
+        }
         $sql = '';
         if ($offset !== null) {
             $sql .= ' OFFSET ' . $offset . ' ROWS';

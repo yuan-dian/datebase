@@ -163,7 +163,6 @@ class Builder extends BaseBuilder
             '%WHERE%'   => $this->parseWhere($where, $whereBind),
             '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
             '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, null),
-            '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
             '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
         ]);
 
@@ -181,7 +180,6 @@ class Builder extends BaseBuilder
             '%WHERE%'   => $this->parseWhere($where, $bind),
             '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
             '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, null),
-            '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
             '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
         ]);
 
@@ -515,6 +513,11 @@ class Builder extends BaseBuilder
     {
         $sql = '';
         if ($limit !== null) {
+            // 防御：负数 limit 在 SQLite 语义为"无限制"（返回全部）、MySQL 为语法错误，
+            // 统一抛异常避免驱动间静默行为差异
+            if ($limit < 0) {
+                throw new \InvalidArgumentException('limit 不能为负数，当前值：' . $limit);
+            }
             $sql .= ' LIMIT ' . $limit;
         }
         if ($offset !== null) {

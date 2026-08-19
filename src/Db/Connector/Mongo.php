@@ -381,7 +381,10 @@ class Mongo extends Connection
             ) : $this->config[$name];
         }
 
-        $m = floor(mt_rand(0, $this->config['master_num'] - 1));
+        // 防御：master_num/主机数为 0 或越界时 mt_rand(min > max) 抛 ValueError
+        $total = count($config['hostname']);
+        $masterNum = max(0, min($this->config['master_num'] ?? 1, $total));
+        $m = $masterNum > 0 ? floor(mt_rand(0, $masterNum - 1)) : 0;
 
         if ($this->config['rw_separate']) {
             if ($master) {
@@ -393,10 +396,11 @@ class Mongo extends Connection
             } elseif (is_numeric($this->config['slave_no'])) {
                 $r = $this->config['slave_no'];
             } else {
-                $r = floor(mt_rand($this->config['master_num'], count($config['hostname']) - 1));
+                $from = min($masterNum, max(0, $total - 1));
+                $r = floor(mt_rand($from, max($from, $total - 1)));
             }
         } else {
-            $r = floor(mt_rand(0, count($config['hostname']) - 1));
+            $r = $total > 0 ? floor(mt_rand(0, $total - 1)) : 0;
         }
 
         $dbConfig = [];
