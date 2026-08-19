@@ -51,7 +51,7 @@ abstract class BaseBuilder
     abstract public function update(string $table, array $data, array $where, array $options = []): array;
     abstract public function delete(string $table, array $where, array $options = []): array;
 
-    abstract protected function parseTable(string|array $table): string;
+    abstract protected function parseTable(string|array $table, ?string $alias = null): string;
     abstract protected function parseField(array $fields): string;
     abstract protected function parseKey(string $key): string;
     abstract protected function parseJoin(array $joins): string;

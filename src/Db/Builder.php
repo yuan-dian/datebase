@@ -14,7 +14,7 @@ class Builder extends BaseBuilder
         $bind = [];
 
         $sql = strtr($this->selectSql, [
-            '%TABLE%'   => $this->parseTable($options['table']),
+            '%TABLE%'   => $this->parseTable($options['table'], $options['alias'] ?? null),
             '%DISTINCT%' => $this->parseDistinct($options['distinct'] ?? false),
             '%EXTRA%'   => $this->parseExtra($options['extra'] ?? ''),
             '%FIELD%'   => $this->parseField($options['field'] ?? ['*']),
@@ -194,7 +194,7 @@ class Builder extends BaseBuilder
         return [trim($sql), $bind];
     }
 
-    protected function parseTable(string|array $table): string
+    protected function parseTable(string|array $table, ?string $alias = null): string
     {
         if (is_array($table)) {
             $tables = [];
@@ -208,7 +208,14 @@ class Builder extends BaseBuilder
             return implode(',', $tables);
         }
 
-        return $this->wrapTable($table);
+        $sql = $this->wrapTable($table);
+
+        // 表别名：FROM table AS alias（仅 select 链式 alias() 提供）
+        if ($alias !== null && $alias !== '') {
+            $sql .= ' AS ' . $this->parseKey($alias);
+        }
+
+        return $sql;
     }
 
     protected function parseField(array $fields): string

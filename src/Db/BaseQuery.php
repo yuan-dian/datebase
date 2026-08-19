@@ -267,6 +267,9 @@ abstract class BaseQuery
         return $this;
     }
 
+    /**
+     * 指定查询表别名（FROM table AS alias，仅 select 生效）
+     */
     public function alias(string $alias): static
     {
         $this->options['alias'] = $alias;
