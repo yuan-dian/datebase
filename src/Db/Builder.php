@@ -523,6 +523,11 @@ class Builder extends BaseBuilder
         return $sql;
     }
 
+    /**
+     * 生成 union 段（对齐 ThinkPHP 模板直接替换风格）
+     * 子查询自带 ORDER/LIMIT 时用派生表包裹：SQLite/MySQL/Oracle 通用，
+     * 否则 UNION 后的 ORDER/LIMIT 会被解释为整体排序分页
+     */
     protected function parseUnion(array $union, array &$bind): string
     {
         if (empty($union)) {
@@ -534,11 +539,16 @@ class Builder extends BaseBuilder
             $type = $u['type'] ?? 'UNION';
             if ($u['query'] instanceof BaseQuery) {
                 $subSql = $this->select($u['query']->getOptions());
-                $sql .= ' ' . $type . ' ' . $subSql[0];
+                $sub = $subSql[0];
+                $subOpts = $u['query']->getOptions();
+                if (!empty($subOpts['order']) || !empty($subOpts['limit'])) {
+                    $sub = 'SELECT * FROM ( ' . $sub . ' )';
+                }
+                $sql .= ' ' . $type . ' ' . $sub;
                 // 合并子查询的绑定参数，避免 UNION 子查询丢失 bind
                 $bind = array_merge($bind, $subSql[1]);
             } elseif (is_string($u['query'])) {
-                $sql .= ' ' . $type . ' ( ' . $u['query'] . ' )';
+                $sql .= ' ' . $type . ' ' . $u['query'];
             }
         }
 
