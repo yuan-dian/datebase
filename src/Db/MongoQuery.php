@@ -269,15 +269,13 @@ class MongoQuery extends BaseQuery
         return $this;
     }
 
-    public function limit(int $offset, ?int $length = null): static
+    public function limit(int $limit): static
     {
-        if (is_null($length)) {
-            $length = $offset;
-            $offset = 0;
-        }
-
-        $this->options['skip'] = $offset;
-        $this->options['limit'] = $length;
+        // 语义统一：与 BaseQuery::limit(int $limit) 单参一致（取前 N 条），
+        // 偏移分页请用 skip()/offset()。此前双参签名 limit(offset, length)
+        // 与 PDO 侧语义不一致（Mongo 下 limit(10) 会从第 10 条开始），
+        // 已移除以免跨驱动代码产生静默行为差异。
+        $this->options['limit'] = $limit;
 
         return $this;
     }
@@ -342,6 +340,11 @@ class MongoQuery extends BaseQuery
 
     public function parseOptions(): array
     {
+        // 全局作用域钩子（模型层覆写实现软删过滤等）；Db 层空实现无操作。
+        // 所有查询入口（find/select/update/delete/cursor/count/aggregate）必经此处，
+        // 保证软删过滤与 PDO 侧 applyGlobalScopes 语义一致。
+        $this->applyGlobalScopes();
+
         $options = $this->options;
 
         if (empty($options['table'])) {

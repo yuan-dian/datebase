@@ -28,6 +28,9 @@ class MongoModelQuery extends MongoQuery
     /** @var class-string<TModel> */
     protected string $modelClass;
 
+    /** @var bool 全局作用域是否已应用 */
+    protected bool $scopesApplied = false;
+
     public function __construct(MongoConnection $connection, string $modelClass)
     {
         parent::__construct($connection, $modelClass::getTableName());
@@ -129,5 +132,44 @@ class MongoModelQuery extends MongoQuery
         }
 
         return $this->hydrate($row);
+    }
+
+    public function delete(): int
+    {
+        // forceDelete() / withoutGlobalScopes() 时跳过软删除作用域，执行物理删除。
+        // 判断必须先于 applyGlobalScopes()：否则软删过滤已写入 options['soft_delete']，
+        // 已软删行（deleted_time 非空）匹配不到，force 物理删除将命中 0 行。
+        $force = !empty($this->options['force_delete']) || $this->withoutScopes;
+
+        if (!$force) {
+            $this->applyGlobalScopes();
+        } else {
+            // 阻断 parent::delete()（MongoQuery::delete）内部 applyGlobalScopes()
+            // 的动态派发：否则软删过滤会在物理删除过滤条件前被重新应用
+            $this->scopesApplied = true;
+        }
+
+        $softDelete = $this->modelClass::getSoftDelete();
+        if (!$force && $softDelete && $softDelete->enabled) {
+            return $this->update([$softDelete->column => date('Y-m-d H:i:s')]);
+        }
+
+        return parent::delete();
+    }
+
+    protected function applyGlobalScopes(): void
+    {
+        if ($this->withoutScopes || $this->scopesApplied) {
+            return;
+        }
+
+        $this->scopesApplied = true;
+        $softDelete = $this->modelClass::getSoftDelete();
+        // withoutGlobalScope('softDelete') 可单独移除软删作用域；其他名字不匹配保持过滤
+        if ($softDelete && $softDelete->enabled && !in_array('softDelete', $this->removedScopes, true)) {
+            // MongoBuilder::parseWhere 消费 soft_delete option：
+            // 生成 [field: null] 过滤（与 PDO 侧 whereNull 语义一致）
+            $this->options['soft_delete'] = [$softDelete->column, ['NULL', '']];
+        }
     }
 }

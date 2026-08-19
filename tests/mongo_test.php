@@ -7,6 +7,7 @@ use MongoDB\Driver\Command;
 use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connector\Mongo as MongoConnection;
 use yuandian\Database\Facade\DB;
+use yuandian\Database\Tests\model\MongoSoftDeleteModel;
 use yuandian\Database\Tests\model\MongoTestModel;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -211,6 +212,41 @@ try {
     check('模型层 CRUD', false, get_class($e) . ': ' . $e->getMessage());
 }
 
+// ======================== 3.5 limit/skip 语义统一（limit(offset,length) → limit(limit)+skip） ========================
+section('3.5 limit/skip 语义统一');
+dropCollection($conn);
+
+try {
+    for ($i = 1; $i <= 5; $i++) {
+        $m = new MongoTestModel();
+        $m->name = "limit_{$i}";
+        $m->status = 1;
+        $m->save();
+    }
+
+    // limit(2)：单参 = 取前 2 条（修复前 Mongo 语义为从第 2 条开始）
+    $top2 = MongoTestModel::order('name', 'asc')->limit(2)->select();
+    check('limit(2) 取前 2 条', count($top2) === 2 && ($top2[0]->name ?? '') === 'limit_1', 'count=' . count($top2) . ', first=' . ($top2[0]->name ?? 'null'));
+
+    // limit(2) 与 PDO 侧语义一致：不跳过首条（修复前 skip=2）
+    $all = MongoTestModel::order('name', 'asc')->select();
+    check('limit(2) 首条 = 全量首条', $top2[0]->id === $all[0]->id, 'limitFirst=' . $top2[0]->id . ', allFirst=' . $all[0]->id);
+
+    // skip(2)->limit(2)：偏移分页（显式 skip 替代旧双参）
+    $page2 = MongoTestModel::order('name', 'asc')->skip(2)->limit(2)->select();
+    check('skip(2)->limit(2) 取第 3-4 条', count($page2) === 2 && ($page2[0]->name ?? '') === 'limit_3', 'count=' . count($page2) . ', first=' . ($page2[0]->name ?? 'null'));
+
+    // offset(2)->limit(2)：Db 层通用 offset 映射 skip（parseOptions 路径）
+    $page2b = MongoTestModel::order('name', 'asc')->offset(2)->limit(2)->select();
+    check('offset(2)->limit(2) 等价 skip', count($page2b) === 2 && $page2b[0]->id === $page2[0]->id, 'count=' . count($page2b));
+
+    // count + skip/limit 组合
+    $countPage2 = MongoTestModel::skip(2)->limit(2)->count();
+    check('count 吃 skip/limit', $countPage2 === 2, "count={$countPage2}");
+} catch (Throwable $e) {
+    check('limit/skip 语义统一', false, get_class($e) . ': ' . $e->getMessage());
+}
+
 // ======================== 4. 模型层 chunk（with 预加载 + offset 分页） ========================
 section('4. 模型层 chunk（with 预加载 + offset 分页）');
 dropCollection($conn);
@@ -295,6 +331,64 @@ try {
 // ======================== 5. 清理 ========================
 section('5. 清理');
 dropCollection($conn);
+
+// ======================== 6. 模型层软删除（N7） ========================
+section('6. 模型层软删除（MongoSoftDeleteModel → N7 接线验证）');
+
+try {
+    $conn->getMongo()->executeCommand(MONGO_DB, new Command(['drop' => 'mongo_test_soft']));
+} catch (Throwable $e) {
+    // 集合不存在，忽略
+}
+
+try {
+    $rows = [];
+    for ($i = 1; $i <= 3; $i++) {
+        $m = new MongoSoftDeleteModel();
+        $m->name = "soft_{$i}";
+        $m->status = $i;
+        $m->save();
+        $rows[] = $m->id;
+    }
+
+    $countAll = MongoSoftDeleteModel::count();
+    check('软删模型 count = 3（无过滤干扰）', $countAll === 3, "count={$countAll}");
+
+    $first = MongoSoftDeleteModel::where('id', '=', $rows[0])->find();
+    check('软删模型 find 命中', $first !== null && $first->name === 'soft_1');
+
+    $deleted = $first->delete();
+    check('软删 delete 返回 true', $deleted === true);
+    check('软删后 find 为空（查询过滤生效）', MongoSoftDeleteModel::where('id', '=', $rows[0])->find() === null);
+    check('软删后 select 过滤', count(MongoSoftDeleteModel::select()) === 2, 'count=' . count(MongoSoftDeleteModel::select()));
+    check('软删后 count 过滤', MongoSoftDeleteModel::count() === 2, 'count=' . MongoSoftDeleteModel::count());
+
+    // withoutGlobalScope('softDelete')：软删行可见（数据仍在，未物理删除）
+    $rawAll = MongoSoftDeleteModel::withoutGlobalScope('softDelete')->count();
+    check('withoutGlobalScope 可见全部 3 条（软删非物理删）', $rawAll === 3, "count={$rawAll}");
+
+    // force()：物理删除，软删行也一并消失（查询器静态链）
+    $secondId = $rows[1];
+    MongoSoftDeleteModel::withoutGlobalScope('softDelete')->where('id', '=', $secondId)->force()->delete();
+    check('force 物理删后原始视图 2 条', MongoSoftDeleteModel::withoutGlobalScope('softDelete')->count() === 2, 'count=' . MongoSoftDeleteModel::withoutGlobalScope('softDelete')->count());
+
+    // Model::forceDelete() 实例便捷入口
+    $third = MongoSoftDeleteModel::withoutGlobalScope('softDelete')->where('id', '=', $rows[2])->find();
+    $third->forceDelete();
+    check('forceDelete 后全部删除', MongoSoftDeleteModel::withoutGlobalScope('softDelete')->count() === 1, 'count=' . MongoSoftDeleteModel::withoutGlobalScope('softDelete')->count());
+
+    // 底层确认：软删行存在但被过滤（deleted_time 已写入）
+    $softRow = DB::table('mongo_test_soft')->where('id', '=', $rows[0])->find();
+    check('软删行底层可见且 deleted_time 已写入', is_array($softRow) && !empty($softRow['deleted_time']), json_encode($softRow));
+
+    // 清理
+    try {
+        $conn->getMongo()->executeCommand(MONGO_DB, new Command(['drop' => 'mongo_test_soft']));
+    } catch (Throwable $e) {
+    }
+} catch (Throwable $e) {
+    check('模型层软删除', false, get_class($e) . ': ' . $e->getMessage());
+}
 
 echo PHP_EOL . str_repeat('=', 60) . PHP_EOL;
 echo "  结果：{$pass} 通过 / {$fail} 失败" . PHP_EOL;
