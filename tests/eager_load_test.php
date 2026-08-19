@@ -142,5 +142,23 @@ $posts4 = EagerPost::with('comments.author.missing')->select();
 check($GLOBALS['sqlCount'] === 3, 'SQL 3 条（post/comment/author，未知层跳过），实际 ' . $GLOBALS['sqlCount']);
 check($posts4[0]->comments[0]->author?->name === 'Alice', 'author 仍正确加载');
 
+echo "\n== 测试 5: with('comments.author')->find() 嵌套预加载 ==\n";
+
+$GLOBALS['sqlCount'] = 0;
+$p1 = EagerPost::with('comments.author')->find();
+
+check($GLOBALS['sqlCount'] === 3, 'SQL 恰好 3 条（find/comment/author 各一），实际 ' . $GLOBALS['sqlCount']);
+check($p1 !== null && count($p1->comments) === 2, 'p1 有 2 条评论');
+check($p1->comments[0]->author?->name === 'Alice', 'p1 评论1 作者 Alice');
+check($p1->comments[1]->author?->name === 'Bob', 'p1 评论2 作者 Bob');
+
+echo "\n== 测试 6: with('comments', 'comments.author')->find() 去重 ==\n";
+
+$GLOBALS['sqlCount'] = 0;
+$p1b = EagerPost::with('comments', 'comments.author')->find();
+
+check($GLOBALS['sqlCount'] === 3, 'SQL 仍恰好 3 条（去重生效），实际 ' . $GLOBALS['sqlCount']);
+check($p1b !== null && count($p1b->comments) === 2 && $p1b->comments[0]->author?->name === 'Alice', '数据仍正确');
+
 echo "\n" . ($GLOBALS['failures'] === 0 ? 'ALL PASS' : $GLOBALS['failures'] . ' FAILURES') . "\n";
 exit($GLOBALS['failures'] === 0 ? 0 : 1);

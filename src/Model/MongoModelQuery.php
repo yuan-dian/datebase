@@ -59,7 +59,7 @@ class MongoModelQuery extends MongoQuery
         $model = $this->hydrateMongo($row);
 
         if (!empty($this->withRelations)) {
-            $model->load(...$this->withRelations);
+            $this->eagerLoadRelations([$model], $this->withRelations);
         }
 
         return $model;

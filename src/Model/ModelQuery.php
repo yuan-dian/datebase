@@ -105,7 +105,7 @@ class ModelQuery extends Query
         $model = $this->hydrate($result);
 
         if (!empty($this->withRelations)) {
-            $model->load(...$this->withRelations);
+            $this->eagerLoadRelations([$model], $this->withRelations);
         }
 
         return $model;
