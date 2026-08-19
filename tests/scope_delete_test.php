@@ -108,6 +108,28 @@ $all3 = ScopePost::withoutGlobalScopes()->select();
 check(count($all3) === 1, '剩余 1 行');
 check($all3[0]->id === 1, '仅剩 id=1（软删状态）');
 
+// ===================== 测试 4: withoutGlobalScope('softDelete') 单独移除软删作用域 =====================
+
+echo "\n== 测试 4: withoutGlobalScope('softDelete') 单独移除软删作用域 ==\n";
+
+// 重置数据：重建表重置自增，插 2 行，软删其中 1 行
+$conn->execute('DROP TABLE scope_post');
+$conn->execute('CREATE TABLE scope_post (id INTEGER PRIMARY KEY AUTOINCREMENT, title VARCHAR(50), deleted_time DATETIME NULL)');
+$conn->execute("INSERT INTO scope_post (title) VALUES ('x'), ('y')");
+ScopePost::where('id', '=', 2)->delete();
+
+// 普通查询：软删过滤生效
+$visible4 = ScopePost::select();
+check(count($visible4) === 1 && $visible4[0]->id === 1, '普通查询仅见未删行');
+
+// withoutGlobalScope('softDelete')：软删行可见（修复前 no-op 仍过滤）
+$all4 = ScopePost::withoutGlobalScope('softDelete')->select();
+check(count($all4) === 2, 'withoutGlobalScope(\'softDelete\') 可见全部 2 行（修复前仅 1 行）');
+
+// withoutGlobalScope('other')：名字不匹配 → 软删过滤保持
+$filtered4 = ScopePost::withoutGlobalScope('other')->select();
+check(count($filtered4) === 1, 'withoutGlobalScope(\'other\') 名字不匹配仍过滤');
+
 // ===================== 汇总 =====================
 
 echo "\n" . ($GLOBALS['failures'] === 0 ? 'ALL PASS' : $GLOBALS['failures'] . ' FAILED') . "\n";
