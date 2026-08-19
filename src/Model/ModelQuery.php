@@ -142,8 +142,8 @@ class ModelQuery extends Query
     {
         $this->applyGlobalScopes();
 
-        // force() / withoutGlobalScopes() 时跳过软删除，执行物理删除
-        $force = !empty($this->options['force']) || $this->withoutScopes;
+        // forceDelete() / withoutGlobalScopes() 时跳过软删除，执行物理删除
+        $force = !empty($this->options['force_delete']) || $this->withoutScopes;
 
         $softDelete = $this->modelClass::getSoftDelete();
         if (!$force && $softDelete && $softDelete->enabled) {

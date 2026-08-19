@@ -27,7 +27,7 @@ class Builder extends BaseBuilder
             '%UNION%'   => $this->parseUnion($options['union'] ?? [], $bind),
             '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
             '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
-            '%FORCE%'   => $this->parseForce($options['force'] ?? ''),
+            '%FORCE%'   => $this->parseForce($options['force_index'] ?? ''),
         ]);
 
         return [trim($sql), $bind];

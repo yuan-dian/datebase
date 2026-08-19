@@ -33,8 +33,8 @@ abstract class BaseQuery
         'having' => [],
         'with'   => [],
         'lock'   => false,
-        'union'  => [],
-        'force'  => false,
+        'union'       => [],
+        'force_delete' => false,
     ];
 
     protected array $bind = [];
@@ -211,7 +211,9 @@ abstract class BaseQuery
      */
     public function setDec(string $field, float|int $step = 1): int
     {
-        return $this->dec($field, $step)->update();
+        $this->dec($field, $step);
+
+        return $this->update($this->options['data'] ?? []);
     }
 
     // ======================== 链式方法 — 排序 / 分页 ========================
@@ -385,11 +387,27 @@ abstract class BaseQuery
     }
 
     /**
-     * 忽略全局作用域
+     * 强制物理删除（跳过软删除与全局作用域）
+     *
+     * 模型层专用：ModelQuery::delete() 读取该选项决定是否跳过软删除。
+     * 查询级一步物理删除见 Query::forceDelete()（终端方法）。
      */
     public function force(): static
     {
-        $this->options['force'] = true;
+        $this->options['force_delete'] = true;
+        return $this;
+    }
+
+    /**
+     * 指定查询强制使用索引（FORCE INDEX）
+     *
+     * SQL Builder 专用：生成 FORCE INDEX (col) 或 FORCE INDEX (col1, col2) 子句。
+     *
+     * @param string|array $index 索引名；多个索引传数组
+     */
+    public function forceIndex(string|array $index): static
+    {
+        $this->options['force_index'] = $index;
         return $this;
     }
 
