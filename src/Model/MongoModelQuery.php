@@ -40,9 +40,47 @@ class MongoModelQuery extends MongoQuery
         return new static($this->connection, $this->modelClass);
     }
 
+    /**
+     * chunk 分块时同步预加载名（withRelations 独立于 options，需经钩子拷贝）
+     */
+    protected function copyExtraState(BaseQuery $query): void
+    {
+        /** @var MongoModelQuery $query chunk 的 newSubQuery 返回 static，运行时必为 MongoModelQuery */
+        if (!empty($this->withRelations)) {
+            $query->withRelations = $this->withRelations;
+        }
+    }
+
     public function getModelClass(): string
     {
         return $this->modelClass;
+    }
+
+    /**
+     * Mongo 模型查询字段名转换：camelCase 属性 → snake_case 列名。
+     *
+     * 存储侧（Model::getFields）已将 camelCase 属性转为 snake_case 存入文档；
+     * 查询侧必须同规则转换，否则 where('parentId') 查 'parentId' 字段而文档存
+     * 'parent_id'，关联查询（whereIn 批量）与条件查询将全部落空。
+     */
+    protected function convertFieldName(string $field): string
+    {
+        if ($field === '') {
+            return $field;
+        }
+
+        $dot = strrpos($field, '.');
+        if ($dot !== false) {
+            $table = substr($field, 0, $dot);
+            $column = substr($field, $dot + 1);
+            $columnMap = $this->modelClass::getColumnMap();
+
+            return $table . '.' . ($columnMap[$column] ?? $column);
+        }
+
+        $columnMap = $this->modelClass::getColumnMap();
+
+        return $columnMap[$field] ?? $field;
     }
 
     /**

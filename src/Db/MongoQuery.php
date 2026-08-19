@@ -284,12 +284,18 @@ class MongoQuery extends BaseQuery
 
     public function order(string $field, string $direction = 'asc'): static
     {
+        // pk_convert_id 时主键存 _id：sort 键 'id' 需转 '_id'，
+        // 否则 Mongo 对缺失字段排序行为怪异，skip/limit 分页会错乱（重复/丢行）
+        $convert = fn (string $key): string =>
+            'id' === $key && $this->connection->getConfig('pk_convert_id') ? '_id' : $key;
+
         if (is_array($field)) {
-            $this->options['sort'] = array_map(function ($val) {
-                return 'asc' == strtolower($val) ? 1 : -1;
-            }, $field);
+            $this->options['sort'] = [];
+            foreach ($field as $f => $val) {
+                $this->options['sort'][$convert((string)$f)] = 'asc' == strtolower((string)$val) ? 1 : -1;
+            }
         } else {
-            $this->options['sort'][$field] = 'asc' == strtolower($direction) ? 1 : -1;
+            $this->options['sort'][$convert($field)] = 'asc' == strtolower($direction) ? 1 : -1;
         }
 
         return $this;
@@ -375,6 +381,12 @@ class MongoQuery extends BaseQuery
             $offset = $listRows * ($page - 1);
             $options['skip'] = intval($offset);
             $options['limit'] = intval($listRows);
+        }
+
+        // chunk/offset 分页：builder 只认 skip，把 Db 层通用的 offset 映射过去
+        if (isset($options['offset'])) {
+            $options['skip'] = $options['offset'];
+            unset($options['offset']);
         }
 
         $this->options = $options;
