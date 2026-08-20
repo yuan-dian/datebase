@@ -24,6 +24,7 @@ use yuandian\Database\Model\Relations\HasManyRelation;
 use yuandian\Database\Model\Relations\HasManyThroughRelation;
 use yuandian\Database\Model\Relations\HasOneRelation;
 use yuandian\Database\Model\Relations\HasOneThroughRelation;
+use yuandian\Database\Model\Relations\Relation;
 use yuandian\Tools\bean\BeanUtil;
 use yuandian\Tools\reflection\ClassReflector;
 use yuandian\Tools\reflection\PropertyReflection;
@@ -69,6 +70,9 @@ abstract class Model
 
     /** 是否已软删（水合时软删列非空即标记） */
     protected bool $softDeleted = false;
+
+    /** @var array<string, Relation> 已构建的关联实例（懒加载复用） */
+    protected array $relationCache = [];
 
     // ===================== 静态代理（链式入口）=====================
 
@@ -327,19 +331,28 @@ abstract class Model
          */
         $attr = $info['attribute'];
 
-        $result = match ($info['type']) {
-            RelationType::HasOne => (new HasOneRelation($this, $attr->model, $attr->foreignKey, $attr->localKey))->getResults(),
-            RelationType::HasMany => (new HasManyRelation($this, $attr->model, $attr->foreignKey, $attr->localKey))->getResults(),
-            RelationType::HasOneThrough => (new HasOneThroughRelation(
-                $this, $attr->model, $attr->through,
-                $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-            ))->getResults(),
-            RelationType::HasManyThrough => (new HasManyThroughRelation(
-                $this, $attr->model, $attr->through,
-                $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-            ))->getResults(),
-            default => null,
-        };
+        if (!isset($this->relationCache[$name])) {
+            $this->relationCache[$name] = match ($info['type']) {
+                RelationType::HasOne => new HasOneRelation($this, $attr->model, $attr->foreignKey, $attr->localKey),
+                RelationType::HasMany => new HasManyRelation($this, $attr->model, $attr->foreignKey, $attr->localKey),
+                RelationType::HasOneThrough => new HasOneThroughRelation(
+                    $this, $attr->model, $attr->through,
+                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+                ),
+                RelationType::HasManyThrough => new HasManyThroughRelation(
+                    $this, $attr->model, $attr->through,
+                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+                ),
+                default => null,
+            };
+            // 未知类型不缓存（null 无法入缓存，isset 区分不了）
+            if ($this->relationCache[$name] === null) {
+                unset($this->relationCache[$name]);
+                return null;
+            }
+        }
+
+        $result = $this->relationCache[$name]->getResults();
 
         $this->loadedRelations[$name] = true;
 
