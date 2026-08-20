@@ -542,12 +542,16 @@ abstract class Model
             HasManyThrough::class => RelationType::HasManyThrough,
         ];
 
-        foreach ($map as $attrClass => $type) {
-            if ($attrs = $prop->getAttribute($attrClass)) {
-                return [
-                    'type'      => $type,
-                    'attribute' => $attrs,
-                ];
+        // 一次反射扫描全部属性注解，按类名匹配（is_a 保留 IS_INSTANCEOF 的继承语义）
+        foreach ($prop->getReflection()->getAttributes() as $attribute) {
+            $attrClass = $attribute->getName();
+            foreach ($map as $targetClass => $type) {
+                if (is_a($attrClass, $targetClass, true)) {
+                    return [
+                        'type'      => $type,
+                        'attribute' => $attribute->newInstance(),
+                    ];
+                }
             }
         }
 
