@@ -92,6 +92,12 @@ trait HydratesModels
         }
         $model->setOriginal($original);
 
+        // 软删标记：软删列非空即已删（未声明该属性的模型也能感知状态）
+        $softDelete = $this->modelClass::getSoftDelete();
+        if ($softDelete?->active() && !empty($row[$softDelete->column])) {
+            $model->setSoftDeleted(true);
+        }
+
         return $model;
     }
 }

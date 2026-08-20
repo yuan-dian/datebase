@@ -67,6 +67,9 @@ abstract class Model
     /** 已加载的关联 */
     protected array $loadedRelations = [];
 
+    /** 是否已软删（水合时软删列非空即标记） */
+    protected bool $softDeleted = false;
+
     // ===================== 静态代理（链式入口）=====================
 
     /**
@@ -154,7 +157,8 @@ abstract class Model
     /**
      * 删除当前模型
      *
-     * 按实际影响行数返回成功与否；删除成功后 exists 置 false。
+     * 委托查询层 delete()：启用软删除时写入时间戳（幂等），否则物理删除。
+     * 成功后 exists 置 false、softDeleted 置 true。
      */
     public function delete(): bool
     {
@@ -165,19 +169,11 @@ abstract class Model
             return false;
         }
 
-        $query = static::query();
-        $query = $query->where(static::getPkColumn(), '=', $pkVal);
-
-        $softDelete = static::getSoftDelete();
-        $affected = 0;
-        if ($softDelete && $softDelete->enabled) {
-            $affected = $query->update([$softDelete->column => date('Y-m-d H:i:s')]);
-        } else {
-            $affected = $query->delete();
-        }
+        $affected = static::query()->where(static::getPkColumn(), '=', $pkVal)->delete();
 
         if ($affected > 0) {
             $this->exists = false;
+            $this->softDeleted = true;
         }
 
         return $affected > 0;
@@ -186,7 +182,7 @@ abstract class Model
     /**
      * 强制删除（忽略软删除）
      *
-     * 按实际影响行数返回成功与否；删除成功后 exists 置 false。
+     * 委托查询层 force()->delete() 物理删除；成功后 exists 置 false。
      */
     public function forceDelete(): bool
     {
@@ -197,14 +193,34 @@ abstract class Model
             return false;
         }
 
-        $query = static::query();
-        $query->withoutGlobalScopes();
-        $query->where(static::getPkColumn(), '=', $pkVal);
-
-        $affected = $query->delete();
+        $affected = static::query()->force()->where(static::getPkColumn(), '=', $pkVal)->delete();
 
         if ($affected > 0) {
             $this->exists = false;
+        }
+
+        return $affected > 0;
+    }
+
+    /**
+     * 恢复当前模型（软删除恢复）
+     *
+     * 委托查询层 restore() 将软删列置回默认值；成功后 softDeleted 置 false、exists 置 true。
+     */
+    public function restore(): bool
+    {
+        $pkProp = static::getPkProperty();
+        $pkVal = $this->$pkProp ?? null;
+
+        if ($pkVal === null) {
+            return false;
+        }
+
+        $affected = static::query()->where(static::getPkColumn(), '=', $pkVal)->restore();
+
+        if ($affected > 0) {
+            $this->softDeleted = false;
+            $this->exists = true;
         }
 
         return $affected > 0;
@@ -548,6 +564,17 @@ abstract class Model
     public function exists(): bool
     {
         return $this->exists;
+    }
+
+    public function isTrashed(): bool
+    {
+        return $this->softDeleted;
+    }
+
+    public function setSoftDeleted(bool $softDeleted): static
+    {
+        $this->softDeleted = $softDeleted;
+        return $this;
     }
 
     /**
