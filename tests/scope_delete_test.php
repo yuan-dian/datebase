@@ -80,17 +80,17 @@ check($forceCount === 1, 'force()->delete() 物理删除已软删行影响 1 行
 $all = ScopePost::withoutGlobalScopes()->select();
 check(count($all) === 2, '物理删除后全部行仅剩 2 行');
 
-// ===================== 测试 2: 无 force 时 delete 已软删行命中 0 行 =====================
+// ===================== 测试 2: 无 force 重复软删已删行（幂等） =====================
 
-echo "\n== 测试 2: 无 force 时 delete 已软删行命中 0 行 ==\n";
+echo "\n== 测试 2: 无 force 重复软删已删行（幂等） ==\n";
 
 // 再软删 id=1
 $softCount2 = ScopePost::where('id', '=', 1)->delete();
 check($softCount2 === 1, '软删 id=1 影响 1 行');
 
-// 无 force delete 已软删行：软删过滤使 WHERE 不命中 → 0 行
+// 无 force 重复软删已删行：幂等语义 → 仍返回 1（重写时间戳，行不消失）
 $again = ScopePost::where('id', '=', 1)->delete();
-check($again === 0, '无 force delete 已软删行影响 0 行');
+check($again === 1, '无 force 重复软删已删行影响 1 行（幂等）');
 
 // 该行仍在（deleted_time 非空）
 $all2 = ScopePost::withoutGlobalScopes()->select();
