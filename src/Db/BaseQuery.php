@@ -7,6 +7,7 @@ namespace yuandian\Database\Db;
 use yuandian\Database\Db\Concern\AggregateQuery;
 use yuandian\Database\Db\Concern\ParamsBind;
 use yuandian\Database\Db\Concern\WhereQuery;
+use yuandian\Database\Db\State\QueryState;
 use yuandian\Database\Exceptions\DbException;
 
 /**
@@ -20,21 +21,7 @@ abstract class BaseQuery
     use AggregateQuery;
     use ParamsBind;
 
-    protected array $options = [
-        'table'  => '',
-        'alias'  => '',
-        'field'  => ['*'],
-        'where'  => [],
-        'order'  => [],
-        'limit'  => null,
-        'offset' => null,
-        'join'   => [],
-        'group'  => [],
-        'having' => [],
-        'lock'   => false,
-        'union'       => [],
-        'comment' => '',
-    ];
+    protected QueryState $state;
 
     protected array $bind = [];
 
@@ -46,8 +33,9 @@ abstract class BaseQuery
      */
     public function __construct(?string $table = null)
     {
+        $this->state = new QueryState();
         if ($table !== null) {
-            $this->options['table'] = $table;
+            $this->state->table = $table;
         }
     }
 
@@ -56,43 +44,17 @@ abstract class BaseQuery
      */
     protected function ensureTable(): void
     {
-        if (empty($this->options['table'])) {
+        if (empty($this->state->table)) {
             throw new DbException('查询未指定数据表，请先调用 table()');
         }
     }
 
     /**
-     * 获取查询参数.
-     *
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     *
-     * @return mixed
+     * 获取类型化查询状态
      */
-    public function getOption(string $name, ?string $default = null): mixed
+    public function getState(): QueryState
     {
-        return $this->options[$name] ?? $default;
-    }
-
-    /**
-     * 设置查询选项
-     *
-     * @param string $name 参数名
-     * @param mixed $value 参数值
-     */
-    public function setOption(string $name, mixed $value): void
-    {
-        $this->options[$name] = $value;
-    }
-
-    /**
-     * 移除查询选项
-     *
-     * @param string $name 参数名
-     */
-    public function removeOption(string $name): void
-    {
-        unset($this->options[$name]);
+        return $this->state;
     }
 
     // ======================== 抽象方法 ========================
@@ -100,7 +62,12 @@ abstract class BaseQuery
     /**
      * 创建同连接的子查询实例（用于 Closure 嵌套条件）
      */
-    abstract protected function newSubQuery(): static;
+    protected function newSubQuery(): static
+    {
+        $query = new static();
+        $query->state = $this->state->copy();
+        return $query;
+    }
 
     // ------- 终端方法 -------
     // 返回类型用公共上界 array|object|null / array：
@@ -173,7 +140,7 @@ abstract class BaseQuery
      */
     public function inc(string $field, float|int $step = 1): static
     {
-        $this->options['data'][$this->convertFieldName($field)] = new Express('+', $step);
+        $this->state->data[$this->convertFieldName($field)] = new Express('+', $step);
         return $this;
     }
 
@@ -185,7 +152,7 @@ abstract class BaseQuery
      */
     public function dec(string $field, float|int $step = 1): static
     {
-        $this->options['data'][$this->convertFieldName($field)] = new Express('-', $step);
+        $this->state->data[$this->convertFieldName($field)] = new Express('-', $step);
         return $this;
     }
 
@@ -199,7 +166,7 @@ abstract class BaseQuery
     {
         $this->inc($field, $step);
 
-        return $this->update($this->options['data'] ?? []);
+        return $this->update($this->state->data);
     }
 
     /**
@@ -212,26 +179,26 @@ abstract class BaseQuery
     {
         $this->dec($field, $step);
 
-        return $this->update($this->options['data'] ?? []);
+        return $this->update($this->state->data);
     }
 
     // ======================== 链式方法 — 排序 / 分页 ========================
 
     public function order(string $field, string $direction = 'asc'): static
     {
-        $this->options['order'][] = [$this->convertFieldName($field), $direction];
+        $this->state->order[] = [$this->convertFieldName($field), $direction];
         return $this;
     }
 
     public function limit(int $limit): static
     {
-        $this->options['limit'] = $limit;
+        $this->state->limit = $limit;
         return $this;
     }
 
     public function offset(int $offset): static
     {
-        $this->options['offset'] = $offset;
+        $this->state->offset = $offset;
         return $this;
     }
 
@@ -256,13 +223,13 @@ abstract class BaseQuery
                 $converted[] = $this->convertFieldName($field);
             }
         }
-        $this->options['field'] = $converted;
+        $this->state->field = $converted;
         return $this;
     }
 
     public function table(string $table): static
     {
-        $this->options['table'] = $table;
+        $this->state->table = $table;
         return $this;
     }
 
@@ -271,7 +238,7 @@ abstract class BaseQuery
      */
     public function alias(string $alias): static
     {
-        $this->options['alias'] = $alias;
+        $this->state->alias = $alias;
         return $this;
     }
 
@@ -282,7 +249,7 @@ abstract class BaseQuery
      */
     public function comment(string $comment): static
     {
-        $this->options['comment'] = $comment;
+        $this->state->comment = $comment;
         return $this;
     }
 
@@ -291,7 +258,7 @@ abstract class BaseQuery
      */
     public function distinct(bool $distinct = true): static
     {
-        $this->options['distinct'] = $distinct;
+        $this->state->distinct = $distinct;
         return $this;
     }
 
@@ -299,7 +266,7 @@ abstract class BaseQuery
 
     public function join(string $table, string $condition, string $type = 'INNER'): static
     {
-        $this->options['join'][] = compact('table', 'condition', 'type');
+        $this->state->join[] = ['type' => $type, 'table' => $table, 'condition' => $condition];
         return $this;
     }
 
@@ -319,13 +286,13 @@ abstract class BaseQuery
         foreach ($fields as $field) {
             $converted[] = $this->convertFieldName($field);
         }
-        $this->options['group'] = array_merge($this->options['group'], $converted);
+        $this->state->group = array_merge($this->state->group, $converted);
         return $this;
     }
 
     public function having(string $condition): static
     {
-        $this->options['having'][] = $condition;
+        $this->state->having[] = $condition;
         return $this;
     }
 
@@ -373,17 +340,12 @@ abstract class BaseQuery
 
     // ======================== 公共工具 ========================
 
-    public function getOptions(): array
-    {
-        return $this->options;
-    }
-
     /**
      * 悲观锁
      */
     public function lock(bool $lock = true): static
     {
-        $this->options['lock'] = $lock;
+        $this->state->lock = $lock;
         return $this;
     }
 
@@ -398,7 +360,7 @@ abstract class BaseQuery
         // 白名单校验：type 会原样拼进 SQL，非法值一律回退默认，防注入
         $type = in_array(strtoupper($type), ['UNION', 'UNION ALL'], true) ? strtoupper($type) : 'UNION';
 
-        $this->options['union'][] = [
+        $this->state->union[] = [
             'query' => $query,
             'type'  => $type,
         ];
@@ -413,12 +375,11 @@ abstract class BaseQuery
         $page = 1;
         do {
             $query = $this->newSubQuery();
-            $query->options = $this->options;
             $this->copyExtraState($query);
             $query->withoutScopes = $this->withoutScopes;
             $query->removedScopes = $this->removedScopes;
-            $query->options['limit'] = $count;
-            $query->options['offset'] = ($page - 1) * $count;
+            $query->state->limit = $count;
+            $query->state->offset = ($page - 1) * $count;
             $query->bind = $this->bind;
 
             $results = $query->select();
@@ -453,7 +414,7 @@ abstract class BaseQuery
      */
     public function forceIndex(string|array $index): static
     {
-        $this->options['force_index'] = $index;
+        $this->state->forceIndex = $index;
         return $this;
     }
 
@@ -515,25 +476,17 @@ abstract class BaseQuery
         $currentPage = max(1, min($currentPage, $lastPage));
 
         // 4. 设置分页参数（保存原值，查询后恢复，避免污染查询对象）
-        $prevLimit = $this->options['limit'] ?? null;
-        $prevOffset = $this->options['offset'] ?? null;
-        $this->options['limit'] = $listRows;
-        $this->options['offset'] = ($currentPage - 1) * $listRows;
+        $prevLimit = $this->state->limit;
+        $prevOffset = $this->state->offset;
+        $this->state->limit = $listRows;
+        $this->state->offset = ($currentPage - 1) * $listRows;
 
         // 5. 查询当前页数据
         try {
             $items = $this->select();
         } finally {
-            if ($prevLimit === null) {
-                unset($this->options['limit']);
-            } else {
-                $this->options['limit'] = $prevLimit;
-            }
-            if ($prevOffset === null) {
-                unset($this->options['offset']);
-            } else {
-                $this->options['offset'] = $prevOffset;
-            }
+            $this->state->limit = $prevLimit;
+            $this->state->offset = $prevOffset;
         }
 
         // 6. 构建分页器
@@ -552,25 +505,17 @@ abstract class BaseQuery
     protected function paginateSimple(int $listRows, int $currentPage): Paginator
     {
         // 1. 多查一条用于判断是否有下一页（保存原值，查询后恢复，避免污染查询对象）
-        $prevLimit = $this->options['limit'] ?? null;
-        $prevOffset = $this->options['offset'] ?? null;
-        $this->options['limit'] = $listRows + 1;
-        $this->options['offset'] = ($currentPage - 1) * $listRows;
+        $prevLimit = $this->state->limit;
+        $prevOffset = $this->state->offset;
+        $this->state->limit = $listRows + 1;
+        $this->state->offset = ($currentPage - 1) * $listRows;
 
         // 2. 查询数据
         try {
             $items = $this->select();
         } finally {
-            if ($prevLimit === null) {
-                unset($this->options['limit']);
-            } else {
-                $this->options['limit'] = $prevLimit;
-            }
-            if ($prevOffset === null) {
-                unset($this->options['offset']);
-            } else {
-                $this->options['offset'] = $prevOffset;
-            }
+            $this->state->limit = $prevLimit;
+            $this->state->offset = $prevOffset;
         }
 
         // 3. 判断是否有下一页
