@@ -12,6 +12,25 @@ use yuandian\Database\Db\State\WhereCondition;
 trait WhereQuery
 {
     /**
+     * 允许的查询运算符白名单（SQL 侧）。
+     *
+     * 运算符会原样拼接进 SQL（Builder::parseWhereItem 默认分支），
+     * 非白名单值一律拒绝，防止注入面。Mongo 侧有独立 exp 映射，
+     * 由 MongoQuery 覆写 operatorWhitelist() 返回 null 跳过校验。
+     */
+    private const ALLOWED_OPERATORS = [
+        '=', '<>', '>', '>=', '<', '<=',
+        'LIKE', 'NOT LIKE',
+        'IN', 'NOT IN',
+        'BETWEEN', 'NOT BETWEEN',
+        'EXISTS', 'NOT EXISTS',
+        'NULL', 'NOT NULL',
+        'EXP', 'COLUMN', 'RAW',
+        'TIME', '< TIME', '> TIME', '<= TIME', '>= TIME',
+        'BETWEEN TIME', 'NOT BETWEEN TIME',
+    ];
+
+    /**
      * 字段名转换钩子：Db 层原样返回；模型层（ModelQuery）覆写为 camel→snake。
      *
      * 用于 where/whereIn/whereNull 等所有字段接受入口，保证模型层可用属性名查询。
@@ -19,6 +38,25 @@ trait WhereQuery
     protected function convertFieldName(string $field): string
     {
         return $field;
+    }
+
+    /**
+     * 运算符白名单钩子：SQL 侧返回白名单；Mongo 侧返回 null（独立 exp 映射）。
+     */
+    protected function operatorWhitelist(): ?array
+    {
+        return self::ALLOWED_OPERATORS;
+    }
+
+    /**
+     * 运算符白名单校验：非法运算符抛异常（防 SQL 注入面）。
+     */
+    protected function assertOperator(string $operator): void
+    {
+        $whitelist = $this->operatorWhitelist();
+        if ($whitelist !== null && !in_array(strtoupper($operator), $whitelist, true)) {
+            throw new InvalidArgumentException('不支持的查询运算符: ' . $operator);
+        }
     }
 
     /**
@@ -33,6 +71,8 @@ trait WhereQuery
      */
     public function where(string $field, string $operator, string|int|float|bool|null|array|Raw|Closure $value): static
     {
+        $this->assertOperator($operator);
+
         return $this->parseWhereExp('AND', $field, $operator, $value);
     }
 
@@ -43,6 +83,8 @@ trait WhereQuery
      */
     public function orWhere(string $field, string $operator, string|int|float|bool|null|array|Raw|Closure $value): static
     {
+        $this->assertOperator($operator);
+
         return $this->parseWhereExp('OR', $field, $operator, $value);
     }
 

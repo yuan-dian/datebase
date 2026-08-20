@@ -600,4 +600,13 @@ class MongoQuery extends BaseQuery
     protected function applyGlobalScopes(): void
     {
     }
+
+    /**
+     * Mongo 运算符走 Builder\Mongo::$exp 独立映射（regex/type/all/near/size/mod 等），
+     * 不受 SQL 侧白名单约束。
+     */
+    protected function operatorWhitelist(): ?array
+    {
+        return null;
+    }
 }
