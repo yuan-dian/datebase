@@ -49,6 +49,15 @@ abstract class Relation
     abstract public function getResults(): Model|array|null;
 
     /**
+     * 批量加载：按 localKey 值一次性查询关联并分组。
+     * 返回 [localKeyValue => Model|array|null]（HasMany 系为 list<Model>）。
+     *
+     * @param array $localValues localKey 值集合（去重后）
+     * @return array<mixed, Model|array|null>
+     */
+    abstract public function matchMany(array $localValues): array;
+
+    /**
      * 创建关联查询的 Query 实例
      *
      * @return ModelQuery|MongoModelQuery

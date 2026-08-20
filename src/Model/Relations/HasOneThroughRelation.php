@@ -80,4 +80,59 @@ class HasOneThroughRelation extends Relation
             ->where($this->related::getPkColumn(), '=', $throughKeyVal)
             ->find();
     }
+
+    public function matchMany(array $localValues): array
+    {
+        if ($localValues === []) {
+            return [];
+        }
+
+        $foreignKeyProp = StrUtil::camel($this->foreignKey);
+        $throughKeyProp = StrUtil::camel($this->throughKey);
+
+        // Step 1: 查中间表
+        $throughModels = $this->newQueryFor($this->through)
+            ->whereIn($this->foreignKey, array_values($localValues))
+            ->select();
+
+        // Step 2: 收集中间表中指向目标表的列值（throughKey 列的值 = 目标表主键值）
+        $throughKeyVals = [];
+        foreach ($throughModels as $throughModel) {
+            $throughKeyVals[] = $throughModel->$throughKeyProp;
+        }
+        $throughKeyVals = array_values(array_unique($throughKeyVals));
+
+        if (empty($throughKeyVals)) {
+            return [];
+        }
+
+        // Step 3: 一次查询最终关联（在目标表按主键 IN）
+        $finalModels = $this->newQuery()
+            ->whereIn($this->related::getPkColumn(), $throughKeyVals)
+            ->select();
+
+        // Step 4: 按目标表主键值分组
+        $byPk = [];
+        $relatedPkProp = StrUtil::camel($this->related::getPkColumn());
+        foreach ($finalModels as $final) {
+            $byPk[$final->$relatedPkProp][] = $final;
+        }
+
+        // Step 5: 中间表按 foreignKey 分组，把 throughKey 值 → 最终关联映射到每个父模型
+        $grouped = [];
+        foreach ($throughModels as $throughModel) {
+            $fkValue = $throughModel->$foreignKeyProp;
+            $tkValue = $throughModel->$throughKeyProp;
+            foreach ($byPk[$tkValue] ?? [] as $final) {
+                $grouped[$fkValue][] = $final;
+            }
+        }
+
+        // Step 6: HasOneThrough 每组取第一条（与原有 eagerLoadHasOneThrough 的 [0] 语义一致）
+        foreach ($grouped as $fkValue => $items) {
+            $grouped[$fkValue] = $items[0];
+        }
+
+        return $grouped;
+    }
 }

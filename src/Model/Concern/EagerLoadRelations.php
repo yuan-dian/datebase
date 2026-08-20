@@ -14,7 +14,6 @@ use yuandian\Database\Model\Relations\HasManyRelation;
 use yuandian\Database\Model\Relations\HasManyThroughRelation;
 use yuandian\Database\Model\Relations\HasOneRelation;
 use yuandian\Database\Model\Relations\HasOneThroughRelation;
-use yuandian\Database\Model\Relations\Relation;
 use yuandian\Tools\utils\StrUtil;
 
 /**
@@ -99,7 +98,7 @@ trait EagerLoadRelations
     }
 
     /**
-     * 批量加载 HasOne：按 localKey 值分组，每组取第一条
+     * 批量加载 HasOne：收集 localKey 值 → matchMany 分组 → 每组取单例
      *
      * @param Model[] $models
      * @return Model[] 加载出的关联模型实例（供嵌套递归）
@@ -108,13 +107,22 @@ trait EagerLoadRelations
     {
         $relation = new HasOneRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey);
 
-        $grouped = $this->batchLoadGrouped($models, $relation, $name);
-
         $localKeyProp = StrUtil::camel($relation->getLocalKey());
+        $values = [];
+        foreach ($models as $model) {
+            $value = $model->{$localKeyProp} ?? null;
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+        $values = array_values(array_unique($values));
+
+        $map = $relation->matchMany($values);
+
         $instances = [];
         foreach ($models as $model) {
-            $localValue = $model->$localKeyProp ?? null;
-            $result = $grouped[$localValue][0] ?? null;
+            $keyVal = $model->{$localKeyProp} ?? null;
+            $result = $map[$keyVal] ?? null;
             $model->setRelation($name, $result);
             if ($result !== null) {
                 $instances[] = $result;
@@ -125,7 +133,7 @@ trait EagerLoadRelations
     }
 
     /**
-     * 批量加载 HasMany：按 localKey 值分组，整组赋值
+     * 批量加载 HasMany：收集 localKey 值 → matchMany 分组 → 整组赋值
      *
      * @param Model[] $models
      * @return Model[] 加载出的关联模型实例（供嵌套递归）
@@ -134,16 +142,25 @@ trait EagerLoadRelations
     {
         $relation = new HasManyRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey);
 
-        $grouped = $this->batchLoadGrouped($models, $relation, $name);
-
         $localKeyProp = StrUtil::camel($relation->getLocalKey());
+        $values = [];
         foreach ($models as $model) {
-            $localValue = $model->$localKeyProp ?? null;
-            $model->setRelation($name, $grouped[$localValue] ?? []);
+            $value = $model->{$localKeyProp} ?? null;
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+        $values = array_values(array_unique($values));
+
+        $map = $relation->matchMany($values);
+
+        foreach ($models as $model) {
+            $keyVal = $model->{$localKeyProp} ?? null;
+            $model->setRelation($name, $map[$keyVal] ?? []);
         }
 
         $instances = [];
-        foreach ($grouped as $items) {
+        foreach ($map as $items) {
             foreach ($items as $item) {
                 $instances[] = $item;
             }
@@ -153,20 +170,34 @@ trait EagerLoadRelations
     }
 
     /**
-     * 批量加载 HasOneThrough：两段查询后按 throughPk 关联，每组取第一条
+     * 批量加载 HasOneThrough：收集 localKey 值 → matchMany 两段查询分组 → 每组取单例
      *
      * @param Model[] $models
      * @return Model[] 加载出的关联模型实例（供嵌套递归）
      */
     protected function eagerLoadHasOneThrough(array $models, string $name, HasOneThrough $attr): array
     {
-        $grouped = $this->batchLoadThroughGrouped($models, $name, $attr);
+        $relation = new HasOneThroughRelation(
+            $models[0], $attr->model, $attr->through,
+            $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+        );
 
-        $localKeyProp = StrUtil::camel($attr->localKey ?: $models[0]::getPkColumn());
+        $localKeyProp = StrUtil::camel($relation->getLocalKey());
+        $values = [];
+        foreach ($models as $model) {
+            $value = $model->{$localKeyProp} ?? null;
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+        $values = array_values(array_unique($values));
+
+        $map = $relation->matchMany($values);
+
         $instances = [];
         foreach ($models as $model) {
-            $localValue = $model->$localKeyProp ?? null;
-            $result = $grouped[$localValue][0] ?? null;
+            $keyVal = $model->{$localKeyProp} ?? null;
+            $result = $map[$keyVal] ?? null;
             $model->setRelation($name, $result);
             if ($result !== null) {
                 $instances[] = $result;
@@ -177,155 +208,42 @@ trait EagerLoadRelations
     }
 
     /**
-     * 批量加载 HasManyThrough：两段查询后按 throughPk 关联，整组赋值
+     * 批量加载 HasManyThrough：收集 localKey 值 → matchMany 两段查询分组 → 整组赋值
      *
      * @param Model[] $models
      * @return Model[] 加载出的关联模型实例（供嵌套递归）
      */
     protected function eagerLoadHasManyThrough(array $models, string $name, HasManyThrough $attr): array
     {
-        $grouped = $this->batchLoadThroughGrouped($models, $name, $attr);
+        $relation = new HasManyThroughRelation(
+            $models[0], $attr->model, $attr->through,
+            $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+        );
 
-        $localKeyProp = StrUtil::camel($attr->localKey ?: $models[0]::getPkColumn());
+        $localKeyProp = StrUtil::camel($relation->getLocalKey());
+        $values = [];
         foreach ($models as $model) {
-            $localValue = $model->$localKeyProp ?? null;
-            $model->setRelation($name, $grouped[$localValue] ?? []);
+            $value = $model->{$localKeyProp} ?? null;
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+        $values = array_values(array_unique($values));
+
+        $map = $relation->matchMany($values);
+
+        foreach ($models as $model) {
+            $keyVal = $model->{$localKeyProp} ?? null;
+            $model->setRelation($name, $map[$keyVal] ?? []);
         }
 
         $instances = [];
-        foreach ($grouped as $items) {
+        foreach ($map as $items) {
             foreach ($items as $item) {
                 $instances[] = $item;
             }
         }
 
         return $instances;
-    }
-
-    /**
-     * 直接关系批量查询：收集所有模型的 localKey 值 → 一次 WHERE IN → 按 foreignKey 分组
-     *
-     * @param Model[] $models
-     * @return array<mixed, Model[]>
-     */
-    protected function batchLoadGrouped(array $models, Relation $relation, string $name): array
-    {
-        $localKey = $relation->getLocalKey();
-        $foreignKey = $relation->getForeignKey();
-
-        $localKeyProp = StrUtil::camel($localKey);
-        $foreignKeyProp = StrUtil::camel($foreignKey);
-
-        // 收集所有模型的 localKey 值
-        $localValues = [];
-        foreach ($models as $model) {
-            $value = $model->$localKeyProp ?? null;
-            if ($value !== null) {
-                $localValues[] = $value;
-            }
-        }
-        $localValues = array_values(array_unique($localValues));
-
-        if (empty($localValues)) {
-            return [];
-        }
-
-        // 一次查询全部关联模型
-        $relatedModels = $relation->newQuery()
-            ->whereIn($foreignKey, $localValues)
-            ->select();
-
-        // 按 foreignKey 值分组
-        $grouped = [];
-        foreach ($relatedModels as $related) {
-            $grouped[$related->$foreignKeyProp][] = $related;
-        }
-
-        return $grouped;
-    }
-
-    /**
-     * 多级关系批量查询：查中间表 → 收集 throughPk 值 → 一次 WHERE IN 查最终关联 → 按 throughPk 分组
-     *
-     * @param Model[] $models
-     * @return array<mixed, Model[]>
-     */
-    protected function batchLoadThroughGrouped(array $models, string $name, HasOneThrough|HasManyThrough $attr): array
-    {
-        $parent = $models[0];
-        $relation = match (true) {
-            $attr instanceof HasOneThrough => new HasOneThroughRelation(
-                $parent, $attr->model, $attr->through,
-                $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-            ),
-            default => new HasManyThroughRelation(
-                $parent, $attr->model, $attr->through,
-                $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-            ),
-        };
-
-        $localKey = $relation->getLocalKey();
-        $foreignKey = $relation->getForeignKey();
-        $throughKey = $relation->getThroughKey();
-
-        $localKeyProp = StrUtil::camel($localKey);
-        $foreignKeyProp = StrUtil::camel($foreignKey);
-        $throughKeyProp = StrUtil::camel($throughKey);
-
-        // Step 1: 收集父模型 localKey 值
-        $localValues = [];
-        foreach ($models as $model) {
-            $value = $model->$localKeyProp ?? null;
-            if ($value !== null) {
-                $localValues[] = $value;
-            }
-        }
-        $localValues = array_values(array_unique($localValues));
-
-        if (empty($localValues)) {
-            return [];
-        }
-
-        // Step 2: 查中间表
-        $throughQuery = $relation->newQueryFor($relation->getThrough());
-        $throughModels = $throughQuery
-            ->whereIn($foreignKey, $localValues)
-            ->select();
-
-        // Step 3: 收集中间表中指向目标表的列值（throughKey 列的值 = 目标表主键值）
-        $throughKeyVals = [];
-        foreach ($throughModels as $throughModel) {
-            $throughKeyVals[] = $throughModel->$throughKeyProp;
-        }
-        $throughKeyVals = array_values(array_unique($throughKeyVals));
-
-        if (empty($throughKeyVals)) {
-            return [];
-        }
-
-        // Step 4: 一次查询最终关联（在目标表按主键 IN）
-        $relatedClass = $relation->getRelated();
-        $finalModels = $relation->newQuery()
-            ->whereIn($relatedClass::getPkColumn(), $throughKeyVals)
-            ->select();
-
-        // Step 5: 按目标表主键值分组
-        $byPk = [];
-        $relatedPkProp = StrUtil::camel($relatedClass::getPkColumn());
-        foreach ($finalModels as $final) {
-            $byPk[$final->$relatedPkProp][] = $final;
-        }
-
-        // Step 6: 中间表按 foreignKey 分组，把 throughKey 值 → 最终关联映射到每个父模型
-        $grouped = [];
-        foreach ($throughModels as $throughModel) {
-            $fkValue = $throughModel->$foreignKeyProp;
-            $tkValue = $throughModel->$throughKeyProp;
-            foreach ($byPk[$tkValue] ?? [] as $final) {
-                $grouped[$fkValue][] = $final;
-            }
-        }
-
-        return $grouped;
     }
 }

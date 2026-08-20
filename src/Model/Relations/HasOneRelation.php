@@ -36,4 +36,27 @@ class HasOneRelation extends Relation
             ->where($this->foreignKey, '=', $localValue)
             ->find();
     }
+
+    public function matchMany(array $localValues): array
+    {
+        if ($localValues === []) {
+            return [];
+        }
+
+        $models = $this->newQuery()
+            ->whereIn($this->foreignKey, array_values($localValues))
+            ->select();
+
+        $foreignKeyProp = StrUtil::camel($this->foreignKey);
+
+        $grouped = [];
+        foreach ($models as $model) {
+            $value = $model->{$foreignKeyProp} ?? null;
+            if ($value !== null) {
+                $grouped[$value] = $model;
+            }
+        }
+
+        return $grouped;
+    }
 }
