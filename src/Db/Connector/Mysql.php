@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace yuandian\Database\Db\Connector;
 
 use PDO;
-use yuandian\Database\Db\Builder\Mysql as MysqlBuilder;
 use yuandian\Database\Db\PDOConnection;
 
 class Mysql extends PDOConnection
@@ -61,7 +60,7 @@ class Mysql extends PDOConnection
 
     public function getBuilderClass(): string
     {
-        return $this->getConfig('builder') ?: MysqlBuilder::class;
+        return \yuandian\Database\Db\Builder::class;
     }
 
     protected function supportSavepoint(): bool
