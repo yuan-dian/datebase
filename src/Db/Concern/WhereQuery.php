@@ -7,6 +7,7 @@ namespace yuandian\Database\Db\Concern;
 use Closure;
 use InvalidArgumentException;
 use yuandian\Database\Db\Raw;
+use yuandian\Database\Db\State\WhereCondition;
 
 trait WhereQuery
 {
@@ -108,61 +109,61 @@ trait WhereQuery
 
     public function whereIn(string $field, array $values): static
     {
-        $this->options['where']['AND'][] = [$this->convertFieldName($field), 'IN', $values];
+        $this->state->where->add('AND', new WhereCondition($this->convertFieldName($field), 'IN', $values));
         return $this;
     }
 
     public function whereNotIn(string $field, array $values): static
     {
-        $this->options['where']['AND'][] = [$this->convertFieldName($field), 'NOT IN', $values];
+        $this->state->where->add('AND', new WhereCondition($this->convertFieldName($field), 'NOT IN', $values));
         return $this;
     }
 
     public function whereNull(string $field): static
     {
-        $this->options['where']['AND'][] = [$this->convertFieldName($field), 'NULL', ''];
+        $this->state->where->add('AND', new WhereCondition($this->convertFieldName($field), 'NULL', ''));
         return $this;
     }
 
     public function whereNotNull(string $field): static
     {
-        $this->options['where']['AND'][] = [$this->convertFieldName($field), 'NOT NULL', ''];
+        $this->state->where->add('AND', new WhereCondition($this->convertFieldName($field), 'NOT NULL', ''));
         return $this;
     }
 
     public function whereBetween(string $field, string|int|float $min, string|int|float $max): static
     {
-        $this->options['where']['AND'][] = [$this->convertFieldName($field), 'BETWEEN', [$min, $max]];
+        $this->state->where->add('AND', new WhereCondition($this->convertFieldName($field), 'BETWEEN', [$min, $max]));
         return $this;
     }
 
     public function whereLike(string $field, string $value): static
     {
-        $this->options['where']['AND'][] = [$this->convertFieldName($field), 'LIKE', $value];
+        $this->state->where->add('AND', new WhereCondition($this->convertFieldName($field), 'LIKE', $value));
         return $this;
     }
 
     public function whereRaw(string $condition, array $bind = []): static
     {
-        $this->options['where']['AND'][] = new Raw($condition, $bind);
+        $this->state->where->add('AND', new WhereCondition('', 'RAW', new Raw($condition, $bind)));
         return $this;
     }
 
     public function orWhereRaw(string $condition, array $bind = []): static
     {
-        $this->options['where']['OR'][] = new Raw($condition, $bind);
+        $this->state->where->add('OR', new WhereCondition('', 'RAW', new Raw($condition, $bind)));
         return $this;
     }
 
     public function whereExists(Closure|string $condition, string $logic = 'AND'): static
     {
-        $this->options['where'][strtoupper($logic)][] = ['', 'EXISTS', $condition];
+        $this->state->where->add($logic, new WhereCondition('', 'EXISTS', $condition));
         return $this;
     }
 
     public function whereNotExists(Closure|string $condition, string $logic = 'AND'): static
     {
-        $this->options['where'][strtoupper($logic)][] = ['', 'NOT EXISTS', $condition];
+        $this->state->where->add($logic, new WhereCondition('', 'NOT EXISTS', $condition));
         return $this;
     }
 
@@ -172,12 +173,11 @@ trait WhereQuery
             $field2 = $operator;
             $operator = '=';
         }
-
-        $this->options['where'][strtoupper($logic)][] = [
+        $this->state->where->add($logic, new WhereCondition(
             $this->convertFieldName($field1),
             'COLUMN',
             [$operator, $this->convertFieldName($field2)],
-        ];
+        ));
         return $this;
     }
 
@@ -188,15 +188,12 @@ trait WhereQuery
      */
     protected function parseWhereExp(string $logic, string $field, string $operator, string|int|float|bool|null|array|Raw|Closure $value): static
     {
-        $logic = strtoupper($logic);
-
         // IS NULL：null 值统一转 NULL 条件（无论运算符）
         if ($value === null) {
-            $this->options['where'][$logic][] = [$this->convertFieldName($field), 'NULL', ''];
+            $this->state->where->add($logic, new WhereCondition($this->convertFieldName($field), 'NULL', ''));
             return $this;
         }
-
-        $this->options['where'][$logic][] = [$this->convertFieldName($field), $operator, $value];
+        $this->state->where->add($logic, new WhereCondition($this->convertFieldName($field), $operator, $value));
         return $this;
     }
 
@@ -205,32 +202,25 @@ trait WhereQuery
      */
     protected function parseEqual(string $logic, string $field, string|int|float|bool|null $value): static
     {
-        $logic = strtoupper($logic);
-
         if ($value === null) {
-            $this->options['where'][$logic][] = [$this->convertFieldName($field), 'NULL', ''];
+            $this->state->where->add($logic, new WhereCondition($this->convertFieldName($field), 'NULL', ''));
             return $this;
         }
-
-        $this->options['where'][$logic][] = [$this->convertFieldName($field), '=', $value];
+        $this->state->where->add($logic, new WhereCondition($this->convertFieldName($field), '=', $value));
         return $this;
     }
 
     /**
-     * 条件分组存储：闭包构建子查询，Builder 解析时递归合并。
+     * 条件分组存储：闭包构建子查询，构建期即求值。
      *
      * @param Closure $callback
      */
     protected function parseWhereGroup(string $logic, Closure $callback): static
     {
-        $logic = strtoupper($logic);
-
         $sub = $this->newSubQuery();
         $callback($sub);
-        // 闭包直接返回子条件组：Builder 解析时递归合并（避免引用参数，兼容 TypePHP AOT）
-        $this->options['where'][$logic][] = static function () use ($sub): array {
-            return $sub->options['where'] ?? [];
-        };
+        // 构建期即求值：子查询的 where 组直接作为嵌套 WhereGroup 存入（TypePHP AOT 友好）
+        $this->state->where->add($logic, new WhereCondition('', 'GROUP', $sub->state->where));
         return $this;
     }
 }
