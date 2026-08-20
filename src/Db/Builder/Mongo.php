@@ -193,7 +193,8 @@ class Mongo implements BuilderInterface
                 }
             }
             if ($list !== []) {
-                $filter[$logic] = $list;
+                // 与 '|'/'&' 拆分直入的顶层组条件合并，避免覆盖（array_merge 保序）
+                $filter[$logic] = array_merge($filter[$logic] ?? [], $list);
             }
         }
 

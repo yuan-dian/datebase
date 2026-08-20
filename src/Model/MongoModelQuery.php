@@ -48,6 +48,7 @@ class MongoModelQuery extends MongoQuery
     protected function copyExtraState(BaseQuery $query): void
     {
         /** @var MongoModelQuery $query chunk 的 newSubQuery 返回 static，运行时必为 MongoModelQuery */
+        $query->state = $this->state->copy();
         if (!empty($this->withRelations)) {
             $query->withRelations = $this->withRelations;
         }
