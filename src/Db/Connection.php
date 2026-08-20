@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db;
 
-use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\DbManager;
 
 /** @template TModel */
-abstract class Connection implements ConnectionInterface
+abstract class Connection implements ConnectionInterface, QueryContext
 {
     protected array $config;
-    protected Builder|MongoBuilder|null $builder = null;
+    protected ?BuilderInterface $builder = null;
     protected ?DbManager $db = null;
 
     /** @var array<string, callable[]> 事件监听器 */
@@ -82,7 +81,7 @@ abstract class Connection implements ConnectionInterface
     /**
      * 获取查询构造器（单例）
      */
-    public function getBuilder(): Builder|MongoBuilder
+    public function getBuilder(): BuilderInterface
     {
         if ($this->builder === null) {
             $builderClass = $this->getBuilderClass();
@@ -92,16 +91,27 @@ abstract class Connection implements ConnectionInterface
     }
 
     /**
-     * 创建 Db 层查询实例
+     * 创建 Db 层查询实例（QueryContext 契约）
+     *
+     * @param string|null $table 数据表名
+     * @return BaseQuery
+     */
+    public function newQuery(?string $table = null): BaseQuery
+    {
+        $queryClass = $this->getQueryClass();
+
+        return new $queryClass($this, $table);
+    }
+
+    /**
+     * 创建 Db 层查询实例（兼容别名，内部统一走 newQuery）
      *
      * @param string|null $table 数据表名
      * @return BaseQuery
      */
     public function table(?string $table = null): BaseQuery
     {
-        $queryClass = $this->getQueryClass();
-
-        return new $queryClass($this, $table);
+        return $this->newQuery($table);
     }
 
     // ======================== 配置 ========================

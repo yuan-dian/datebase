@@ -4,18 +4,23 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db\Builder;
 
-use Closure;
 use MongoDB\BSON\Javascript;
 use MongoDB\BSON\ObjectID;
 use MongoDB\BSON\Regex;
 use MongoDB\Driver\BulkWrite;
 use MongoDB\Driver\Command;
 use MongoDB\Driver\Query as MongoQuery;
+use yuandian\Database\Db\BuilderInterface;
+use yuandian\Database\Db\Compiled;
 use yuandian\Database\Db\Connector\Mongo as Connection;
 use yuandian\Database\Db\MongoQuery as Query;
+use yuandian\Database\Db\Raw;
+use yuandian\Database\Db\State\QueryState;
+use yuandian\Database\Db\State\WhereCondition;
+use yuandian\Database\Db\State\WhereGroup;
 use yuandian\Database\Exceptions\DbException;
 
-class Mongo
+class Mongo implements BuilderInterface
 {
     protected Connection $connection;
     protected ObjectID|int|string|array $insertId = [];
@@ -58,6 +63,49 @@ class Mongo
     public function getConnection(): Connection
     {
         return $this->connection;
+    }
+
+    // ---- BuilderInterface 实现：构造临时 MongoQuery 承接 state ----
+
+    protected function queryFromState(QueryState $state): Query
+    {
+        $query = new Query($this->connection, $state->table ?: null);
+        $query->setState($state);
+        return $query;
+    }
+
+    public function compileSelect(QueryState $state): Compiled
+    {
+        $query = $this->queryFromState($state);
+        return new Compiled($this->select($query)); // statement = MongoDB\Driver\Query
+    }
+
+    public function compileInsert(string $table, array $data, ?string $comment = null): Compiled
+    {
+        $query = new Query($this->connection, $table);
+        $query->getState()->data = $data;
+        return new Compiled($this->insert($query)); // statement = BulkWrite
+    }
+
+    public function compileInsertAll(string $table, array $dataList, ?string $comment = null): Compiled
+    {
+        $query = new Query($this->connection, $table);
+        return new Compiled($this->insertAll($query, $dataList));
+    }
+
+    public function compileUpdate(string $table, array $data, QueryState $state): Compiled
+    {
+        $query = new Query($this->connection, $table);
+        $query->setState($state);
+        $query->getState()->data = $data;
+        return new Compiled($this->update($query));
+    }
+
+    public function compileDelete(string $table, QueryState $state): Compiled
+    {
+        $query = new Query($this->connection, $table);
+        $query->setState($state);
+        return new Compiled($this->delete($query));
     }
 
     protected function parseKey(Query $query, string $key): string
@@ -130,49 +178,60 @@ class Mongo
         return $result;
     }
 
-    public function parseWhere(Query $query, array $where): array
+    public function parseWhere(Query $query, WhereGroup $where): array
     {
-        if (empty($where)) {
-            $where = [];
-        }
-
         $filter = [];
-        foreach ($where as $logic => $val) {
-            $logic = '$' . strtolower($logic);
-            foreach ($val as $field => $value) {
-                if (is_array($value)) {
-                    if (key($value) !== 0) {
-                        throw new DbException('where express error:' . var_export($value, true));
-                    }
-                    $field = array_shift($value);
-                } elseif (!($value instanceof Closure)) {
-                    throw new DbException('where express error:' . var_export($value, true));
-                }
 
-                if ($value instanceof Closure) {
-                    $query = new Query($this->connection);
-                    call_user_func_array($value, [&$query]);
-                    $filter[$logic][] = $this->parseWhere($query, $query->getOption('where'));
+        foreach (['and' => '$and', 'or' => '$or'] as $prop => $logic) {
+            $list = [];
+            foreach ($where->{$prop} as $condition) {
+                [$target, $items] = $this->parseWhereCondition($query, $condition);
+                if ($target === null) {
+                    $list[] = $items[0];
                 } else {
-                    if (str_contains($field, '|')) {
-                        $array = explode('|', $field);
-                        foreach ($array as $k) {
-                            $filter['$or'][] = $this->parseWhereItem($query, $k, $value);
-                        }
-                    } elseif (str_contains($field, '&')) {
-                        $array = explode('&', $field);
-                        foreach ($array as $k) {
-                            $filter['$and'][] = $this->parseWhereItem($query, $k, $value);
-                        }
-                    } else {
-                        $field = is_string($field) ? $field : '';
-                        $filter[$logic][] = $this->parseWhereItem($query, $field, $value);
-                    }
+                    $filter[$target] = array_merge($filter[$target] ?? [], $items);
                 }
+            }
+            if ($list !== []) {
+                $filter[$logic] = $list;
             }
         }
 
         return $filter;
+    }
+
+    /**
+     * 单条 WhereCondition → filter 片段。
+     * 返回 [目标逻辑|null, 片段列表]：null 表示并入条件自身所在组；
+     * '$or'/'$and' 表示 field 含 '|'/'&' 拆分后直入顶层组（与原 parseWhere 行为一致）。
+     */
+    protected function parseWhereCondition(Query $query, WhereCondition $c): array
+    {
+        if ($c->value instanceof WhereGroup) {
+            return [null, [$this->parseWhere($query, $c->value)]];
+        }
+
+        if ($c->value instanceof Raw) {
+            return [null, [$this->parseWhereItem($query, $c->field, $c->value)]];
+        }
+
+        if (str_contains($c->field, '|')) {
+            $items = [];
+            foreach (explode('|', $c->field) as $k) {
+                $items[] = $this->parseWhereItem($query, $k, [$c->operator, $c->value]);
+            }
+            return ['$or', $items];
+        }
+
+        if (str_contains($c->field, '&')) {
+            $items = [];
+            foreach (explode('&', $c->field) as $k) {
+                $items[] = $this->parseWhereItem($query, $k, [$c->operator, $c->value]);
+            }
+            return ['$and', $items];
+        }
+
+        return [null, [$this->parseWhereItem($query, $c->field, [$c->operator, $c->value])]];
     }
 
     protected function parseWhereItem(Query $query, $field, $val): array
@@ -310,9 +369,9 @@ class Mongo
 
     public function insert(Query $query): BulkWrite
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
 
-        $data = $this->parseData($query, $options['data']);
+        $data = $this->parseData($query, $state->data);
 
         $bulk = new BulkWrite();
 
@@ -320,7 +379,7 @@ class Mongo
             $this->insertId = $insertId;
         }
 
-        $this->log('insert', $data, $options);
+        $this->log('insert', $data, $state->data);
 
         return $bulk;
     }
@@ -328,7 +387,7 @@ class Mongo
     public function insertAll(Query $query, array $dataSet): BulkWrite
     {
         $bulk = new BulkWrite();
-        $options = $query->getOptions();
+        $state = $query->getState();
 
         $this->insertId = [];
         foreach ($dataSet as $data) {
@@ -338,19 +397,19 @@ class Mongo
             }
         }
 
-        $this->log('insert', $dataSet, $options);
+        $this->log('insert', $dataSet, $state->data);
 
         return $bulk;
     }
 
     public function update(Query $query): BulkWrite
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
 
-        $data = $this->parseSet($query, $options['data']);
-        $where = $this->parseWhere($query, $options['where']);
+        $data = $this->parseSet($query, $state->data);
+        $where = $this->parseWhere($query, $state->where);
 
-        if (1 == $options['limit']) {
+        if (1 == $state->limit) {
             $updateOptions = ['multi' => false];
         } else {
             $updateOptions = ['multi' => true];
@@ -367,12 +426,12 @@ class Mongo
 
     public function delete(Query $query): BulkWrite
     {
-        $options = $query->getOptions();
-        $where = $this->parseWhere($query, $options['where']);
+        $state = $query->getState();
+        $where = $this->parseWhere($query, $state->where);
 
         $bulk = new BulkWrite();
 
-        if (1 == $options['limit']) {
+        if (1 == $state->limit) {
             $deleteOptions = ['limit' => 1];
         } else {
             $deleteOptions = ['limit' => 0];
@@ -387,9 +446,47 @@ class Mongo
 
     public function select(Query $query, bool $one = false): MongoQuery
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
 
-        $where = $this->parseWhere($query, $options['where']);
+        $where = $this->parseWhere($query, $state->where);
+
+        // 从 state 组装 MongoDB\Driver\Query 选项（与 parseOptions 的驱动相关键一致）
+        $options = [];
+        if ($state->limit !== null) {
+            $options['limit'] = $state->limit;
+        }
+
+        if ($state->field !== ['*']) {
+            $options['projection'] = $state->field;
+        }
+
+        if (!empty($state->order)) {
+            $options['sort'] = $state->order;
+        }
+
+        if ($state->comment !== '') {
+            $options['comment'] = $state->comment;
+        }
+
+        if ($state->offset !== null) {
+            $options['skip'] = $state->offset;
+        }
+
+        foreach ($state->extra as $name => $value) {
+            $options[$name] = $value;
+        }
+
+        // comment/maxTimeMS 合并进 modifiers（与 parseOptions 语义一致）
+        $modifiers = empty($options['modifiers']) ? [] : $options['modifiers'];
+        if (isset($options['comment'])) {
+            $modifiers['$comment'] = $options['comment'];
+        }
+        if (isset($options['maxTimeMS'])) {
+            $modifiers['$maxTimeMS'] = $options['maxTimeMS'];
+        }
+        if (!empty($modifiers)) {
+            $options['modifiers'] = $modifiers;
+        }
 
         if ($one) {
             $options['limit'] = 1;
@@ -404,15 +501,23 @@ class Mongo
 
     public function count(Query $query): Command
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
 
-        $cmd['count'] = $options['table'];
-        $cmd['query'] = (object)$this->parseWhere($query, $options['where']);
+        $cmd['count'] = $state->table;
+        $cmd['query'] = (object)$this->parseWhere($query, $state->where);
 
         foreach (['hint', 'limit', 'maxTimeMS', 'skip'] as $option) {
-            if (isset($options[$option])) {
-                $cmd[$option] = $options[$option];
+            if (isset($state->extra[$option])) {
+                $cmd[$option] = $state->extra[$option];
             }
+        }
+
+        if ($state->limit !== null) {
+            $cmd['limit'] = $state->limit;
+        }
+
+        if ($state->offset !== null) {
+            $cmd['skip'] = $state->offset;
         }
 
         $command = new Command($cmd);
@@ -423,30 +528,30 @@ class Mongo
 
     public function aggregate(Query $query, array $extra): Command
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
         [$fun, $field] = $extra;
 
         if ('id' == $field && $this->connection->getConfig('pk_convert_id')) {
             $field = '_id';
         }
 
-        $group = isset($options['group']) ? '$' . $options['group'] : null;
+        $group = isset($state->extra['group']) ? '$' . $state->extra['group'] : null;
 
         $pipeline = [
-            ['$match' => (object)$this->parseWhere($query, $options['where'])],
+            ['$match' => (object)$this->parseWhere($query, $state->where)],
             ['$group' => ['_id' => $group, 'aggregate' => ['$' . $fun => '$' . $field]]],
         ];
 
         $cmd = [
-            'aggregate'    => $options['table'],
+            'aggregate'    => $state->table,
             'allowDiskUse' => true,
             'pipeline'     => $pipeline,
             'cursor'       => new \stdClass(),
         ];
 
         foreach (['explain', 'collation', 'bypassDocumentValidation', 'readConcern'] as $option) {
-            if (isset($options[$option])) {
-                $cmd[$option] = $options[$option];
+            if (isset($state->extra[$option])) {
+                $cmd[$option] = $state->extra[$option];
             }
         }
 
@@ -459,7 +564,7 @@ class Mongo
 
     public function multiAggregate(Query $query, $extra): Command
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
 
         [$aggregate, $groupBy] = $extra;
 
@@ -474,20 +579,20 @@ class Mongo
         }
 
         $pipeline = [
-            ['$match' => (object)$this->parseWhere($query, $options['where'])],
+            ['$match' => (object)$this->parseWhere($query, $state->where)],
             ['$group' => $groups],
         ];
 
         $cmd = [
-            'aggregate'    => $options['table'],
+            'aggregate'    => $state->table,
             'allowDiskUse' => true,
             'pipeline'     => $pipeline,
             'cursor'       => new \stdClass(),
         ];
 
         foreach (['explain', 'collation', 'bypassDocumentValidation', 'readConcern'] as $option) {
-            if (isset($options[$option])) {
-                $cmd[$option] = $options[$option];
+            if (isset($state->extra[$option])) {
+                $cmd[$option] = $state->extra[$option];
             }
         }
 
@@ -499,19 +604,18 @@ class Mongo
 
     public function distinct(Query $query, $field): Command
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
 
         $cmd = [
-            'distinct' => $options['table'],
+            'distinct' => $state->table,
             'key'      => $field,
         ];
 
-        if (!empty($options['where'])) {
-            $cmd['query'] = (object)$this->parseWhere($query, $options['where']);
-        }
+        // 原 !empty($options['where']) 对对象恒真，等价于无条件设置 query
+        $cmd['query'] = (object)$this->parseWhere($query, $state->where);
 
-        if (isset($options['maxTimeMS'])) {
-            $cmd['maxTimeMS'] = $options['maxTimeMS'];
+        if (isset($state->extra['maxTimeMS'])) {
+            $cmd['maxTimeMS'] = $state->extra['maxTimeMS'];
         }
 
         $command = new Command($cmd);
@@ -533,9 +637,9 @@ class Mongo
 
     public function collStats(Query $query): Command
     {
-        $options = $query->getOptions();
+        $state = $query->getState();
 
-        $cmd = ['collStats' => $options['table']];
+        $cmd = ['collStats' => $state->table];
         $command = new Command($cmd);
 
         $this->log('cmd', 'collStats', $cmd);

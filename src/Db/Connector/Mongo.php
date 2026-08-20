@@ -13,7 +13,7 @@ use MongoDB\Driver\Manager;
 use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
 use PDO;
-use yuandian\Database\Db\Builder;
+use yuandian\Database\Db\BuilderInterface;
 use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connection;
 use yuandian\Database\Db\MongoQuery as Query;
@@ -70,7 +70,7 @@ class Mongo extends Connection
         return $this->getConfig('query') ?: Query::class;
     }
 
-    public function getBuilder(): Builder|MongoBuilder
+    public function getBuilder(): BuilderInterface
     {
         if ($this->builder === null) {
             $this->builder = new MongoBuilder($this);

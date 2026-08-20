@@ -57,6 +57,14 @@ abstract class BaseQuery
         return $this->state;
     }
 
+    /**
+     * 设置类型化查询状态（Builder 编译期承接外部 state 用）
+     */
+    public function setState(QueryState $state): void
+    {
+        $this->state = $state;
+    }
+
     // ======================== 抽象方法 ========================
 
     /**
