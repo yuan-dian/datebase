@@ -51,9 +51,10 @@ trait HydratesModels
         $model = new $this->modelClass();
         $model->setExists(true);
 
-        $columnMap = $model::getColumnMap();
+        $meta = $model::getMeta();
+        $columnMap = $meta['fields'];
         $reverseMap = $this->getReverseColumnMap($this->modelClass);
-        $jsonColumns = $model::getJsonColumns();
+        $jsonColumns = $meta['jsonColumns'];
 
         foreach ($row as $column => $value) {
             // 原样命中（Mysql/Sqlite 小写列）→ 小写兜底（Oracle wrap 强制大写列，如 CREATE_TIME → create_time）
@@ -93,7 +94,7 @@ trait HydratesModels
         $model->setOriginal($original);
 
         // 软删标记：软删列非空即已删（未声明该属性的模型也能感知状态）
-        $softDelete = $this->modelClass::getSoftDelete();
+        $softDelete = $meta['softDelete'];
         if ($softDelete?->active() && !empty($row[$softDelete->column])) {
             $model->setSoftDeleted(true);
         }
