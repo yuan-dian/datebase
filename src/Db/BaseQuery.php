@@ -274,6 +274,8 @@ abstract class BaseQuery
 
     public function join(string $table, string $condition, string $type = 'INNER'): static
     {
+        // 白名单校验：type 会原样拼进 SQL，非法值一律回退默认，防注入
+        $type = in_array(strtoupper($type), ['INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS'], true) ? strtoupper($type) : 'INNER';
         $this->state->join[] = ['type' => $type, 'table' => $table, 'condition' => $condition];
         return $this;
     }

@@ -256,7 +256,10 @@ class Builder extends BaseBuilder
 
         $sql = '';
         foreach ($joins as $join) {
-            $sql .= " {$join['type']} JOIN " . $this->parseTable($join['table']);
+            // 二次防御：即使 state 被直接写入，type 也仅接受白名单值（防注入）
+            $type = strtoupper((string)($join['type'] ?? 'INNER'));
+            $type = in_array($type, ['INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS'], true) ? $type : 'INNER';
+            $sql .= " {$type} JOIN " . $this->parseTable($join['table']);
             $sql .= ' ON ' . $join['condition'];
         }
         return $sql;
