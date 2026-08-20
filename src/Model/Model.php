@@ -55,6 +55,7 @@ abstract class Model
 {
     // ===================== 静态缓存 =====================
 
+    /** @var array<class-string, ModelMeta> 类名→元数据值对象 */
     protected static array $_metaCache = [];
 
     // ===================== 实例状态 =====================
@@ -248,7 +249,7 @@ abstract class Model
         }
 
         // 已加载的关联属性（不在 columnMap 中）同样参与序列化
-        foreach (static::getMeta()['relations'] as $prop => $relation) {
+        foreach (static::getMeta()->relations as $prop => $relation) {
             if (($this->$prop ?? null) !== null) {
                 $data[$prop] = $this->$prop;
             }
@@ -306,7 +307,7 @@ abstract class Model
      */
     protected function isNullableProperty(string $name): bool
     {
-        return self::getMeta()['nullable'][$name] ?? false;
+        return self::getMeta()->nullable[$name] ?? false;
     }
 
     /**
@@ -371,7 +372,7 @@ abstract class Model
     // ===================== 元数据 =====================
 
 
-    public static function getMeta(): array
+    public static function getMeta(): ModelMeta
     {
         $class = static::class;
         if (!isset(self::$_metaCache[$class])) {
@@ -380,7 +381,7 @@ abstract class Model
         return self::$_metaCache[$class];
     }
 
-    protected static function resolveMeta(string $class): array
+    protected static function resolveMeta(string $class): ModelMeta
     {
         $reflection = new ClassReflector($class);
 
@@ -445,19 +446,19 @@ abstract class Model
             }
         }
 
-        return [
-            'table'         => $tableName,
-            'connection'    => $connectionName,
-            'softDelete'    => $softDelete,
-            'autoWriteTime' => $autoWriteTime,
-            'fields'        => $fields,
-            'pkProperty'    => $pkProperty,
-            'pkColumn'      => $pkColumn,
-            'pkType'        => $pkType,
-            'relations'     => $relations,
-            'jsonColumns'   => $jsonColumns,
-            'nullable'      => $nullable,
-        ];
+        return new ModelMeta(
+            $tableName,
+            $connectionName,
+            $softDelete,
+            $autoWriteTime,
+            $fields,
+            $pkProperty,
+            $pkColumn,
+            $pkType,
+            $relations,
+            $jsonColumns,
+            $nullable,
+        );
     }
 
     /**
@@ -465,7 +466,7 @@ abstract class Model
      */
     public static function getTableName(): string
     {
-        return self::getMeta()['table'];
+        return self::getMeta()->table;
     }
 
     /**
@@ -473,7 +474,7 @@ abstract class Model
      */
     public static function getConnectionName(): ?string
     {
-        return self::getMeta()['connection'] ?? null;
+        return self::getMeta()->connection;
     }
 
     /**
@@ -481,7 +482,7 @@ abstract class Model
      */
     public static function getSoftDelete(): ?SoftDelete
     {
-        return self::getMeta()['softDelete'] ?? null;
+        return self::getMeta()->softDelete;
     }
 
     /**
@@ -489,7 +490,7 @@ abstract class Model
      */
     public static function getAutoWriteTime(): ?AutoWriteTime
     {
-        return self::getMeta()['autoWriteTime'] ?? null;
+        return self::getMeta()->autoWriteTime;
     }
 
     /**
@@ -497,7 +498,7 @@ abstract class Model
      */
     public static function getPkProperty(): string
     {
-        return self::getMeta()['pkProperty'];
+        return self::getMeta()->pkProperty;
     }
 
     /**
@@ -505,7 +506,7 @@ abstract class Model
      */
     public static function getPkColumn(): string
     {
-        return self::getMeta()['pkColumn'];
+        return self::getMeta()->pkColumn;
     }
 
     /**
@@ -513,7 +514,7 @@ abstract class Model
      */
     public static function getPkType(): IdType
     {
-        return self::getMeta()['pkType'];
+        return self::getMeta()->pkType;
     }
 
     /**
@@ -522,16 +523,16 @@ abstract class Model
      */
     public static function getColumnMap(): array
     {
-        return self::getMeta()['fields'];
+        return self::getMeta()->fields;
     }
 
     /**
      * 获取关联元数据
-     * @return array{type: string, attribute: object}|null
+     * @return array{type: RelationType, attribute: object}|null
      */
     public static function getRelationInfo(string $name): ?array
     {
-        return self::getMeta()['relations'][$name] ?? null;
+        return self::getMeta()->relations[$name] ?? null;
     }
 
     /**
@@ -540,7 +541,7 @@ abstract class Model
      */
     public static function getJsonColumns(): array
     {
-        return self::getMeta()['jsonColumns'];
+        return self::getMeta()->jsonColumns;
     }
 
     /**
