@@ -621,9 +621,10 @@ abstract class Model
         }
         $autoWriteTime = static::getAutoWriteTime();
         if ($autoWriteTime && $autoWriteTime->enabled) {
+            $now = date('Y-m-d H:i:s');
             $createTime = $autoWriteTime->createTime;
             if ($createTime !== false && !isset($data[$createTime])) {
-                $data[$createTime] = date('Y-m-d H:i:s');
+                $data[$createTime] = $now;
                 $propertyCreateTime = StrUtil::camel($createTime);
                 if (property_exists($this, $propertyCreateTime)) {
                     $this->$propertyCreateTime = $data[$createTime];
@@ -631,7 +632,7 @@ abstract class Model
             }
             $updateTime = $autoWriteTime->updateTime;
             if ($updateTime !== false && !isset($data[$updateTime])) {
-                $data[$updateTime] = date('Y-m-d H:i:s');
+                $data[$updateTime] = $now;
                 $propertyUpdateTime = StrUtil::camel($updateTime);
                 if (property_exists($this, $propertyUpdateTime)) {
                     $this->$propertyUpdateTime = $data[$updateTime];
