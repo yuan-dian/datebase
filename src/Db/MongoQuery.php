@@ -326,7 +326,13 @@ class MongoQuery extends BaseQuery
 
     public function getPk(): string
     {
-        return $this->connection->getConfig('pk');
+        $pk = $this->connection->getConfig('pk');
+        // pk_convert_id 时模型侧主键为 id（原 connect() 曾连接级改写 config['pk']，
+        // 改为读取时语义化转换，消除连接副作用）
+        if ($pk === '_id' && $this->connection->getConfig('pk_convert_id')) {
+            return 'id';
+        }
+        return $pk;
     }
 
     public function cursor(): Cursor

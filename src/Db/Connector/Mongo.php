@@ -95,10 +95,6 @@ class Mongo extends Connection
             $this->dbName = $config['database'];
             $this->typeMap = $config['type_map'];
 
-            if ($config['pk_convert_id'] && '_id' == $config['pk']) {
-                $this->config['pk'] = 'id';
-            }
-
             if (empty($config['dsn'])) {
                 $config['dsn'] = 'mongodb://' . ($config['username'] ? "{$config['username']}" : '') . ($config['password'] ? ":{$config['password']}@" : '') . $config['hostname'] . ($config['hostport'] ? ":{$config['hostport']}" : '');
                 $config['dsn'] .= !empty($config['auth_source']) ? '/?authSource=' . $config['auth_source'] : '';
@@ -422,7 +418,7 @@ class Mongo extends Connection
 
         $manager = new Manager($this->buildUrl(), $this->config['params']);
 
-        if (!empty($config['trigger_sql'])) {
+        if (!empty($this->config['trigger_sql'])) {
             $this->trigger(
                 'CONNECT:ReplicaSet[ UseTime:' . number_format(
                     microtime(true) - $startTime,
@@ -448,7 +444,9 @@ class Mongo extends Connection
         ) : $this->config['hostport'];
 
         for ($i = 0; $i < count($hostList); $i++) {
-            $url = $url . $hostList[$i] . ':' . $portList[0] . ',';
+            // 端口逐主机配对：多主机时各用对应端口，缺省回退第一个（防所有主机共用同一端口）
+            $port = $portList[$i] ?? $portList[0];
+            $url = $url . $hostList[$i] . ':' . $port . ',';
         }
 
         return rtrim($url, ',') . '/';
