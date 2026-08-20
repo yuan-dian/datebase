@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Concern;
 
+use yuandian\Database\Db\State\WhereCondition;
+
 /**
  * 模型层软删除查询能力：全局作用域过滤、软删/物理删、强制删除。
  *
@@ -115,15 +117,10 @@ trait HasSoftDeleteQuery
             return;
         }
 
-        $column = $softDelete->column;
         // 幂等：软删过滤可能被宿主覆写方法与 Query 父类双重触发，已注入则跳过
-        foreach ($this->options['where']['AND'] ?? [] as $condition) {
-            if (is_array($condition) && ($condition[0] ?? null) === $column && ($condition[1] ?? null) === 'NULL') {
-                return;
-            }
+        if (!$this->state->where->hasCondition($softDelete->column, 'NULL')) {
+            $this->state->where->add('AND', new WhereCondition($softDelete->column, 'NULL', ''));
         }
-
-        $this->whereNull($column);
     }
 
     /**

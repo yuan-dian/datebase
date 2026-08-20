@@ -19,7 +19,7 @@ use yuandian\Database\Exceptions\DbException;
 class Query extends BaseQuery
 {
     protected Connection $connection;
-    protected Builder $builder;
+    protected BuilderInterface $builder;
 
     /**
      * @param Connection $connection
@@ -35,7 +35,9 @@ class Query extends BaseQuery
 
     protected function newSubQuery(): static
     {
-        return new static($this->connection, $this->options['table'] ?: null);
+        $query = new static($this->connection, $this->state->table ?: null);
+        $query->state = $this->state->copy();
+        return $query;
     }
 
     /**
@@ -49,12 +51,12 @@ class Query extends BaseQuery
     public function find(): array|object|null
     {
         $this->ensureTable();
-        $this->options['limit'] = 1;
+        $this->state->limit = 1;
         $this->applyGlobalScopes();
 
-        [$sql, $bind] = $this->builder->select($this->options);
+        $compiled = $this->builder->compileSelect($this->state);
 
-        $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
+        $rows = $this->connection->query($compiled->statement, array_merge($compiled->bind, $this->bind));
 
         return $rows[0] ?? null;
     }
@@ -69,9 +71,9 @@ class Query extends BaseQuery
         $this->ensureTable();
         $this->applyGlobalScopes();
 
-        [$sql, $bind] = $this->builder->select($this->options);
+        $compiled = $this->builder->compileSelect($this->state);
 
-        return $this->connection->query($sql, array_merge($bind, $this->bind));
+        return $this->connection->query($compiled->statement, array_merge($compiled->bind, $this->bind));
     }
 
     /**
@@ -86,13 +88,13 @@ class Query extends BaseQuery
         $this->ensureTable();
         $this->applyGlobalScopes();
 
-        $opts = $this->options;
-        $opts['field'] = [$field];
-        $opts['limit'] = 1;
+        $state = $this->state->copy();
+        $state->field = [$field];
+        $state->limit = 1;
 
-        [$sql, $bind] = $this->builder->select($opts);
+        $compiled = $this->builder->compileSelect($state);
 
-        $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
+        $rows = $this->connection->query($compiled->statement, array_merge($compiled->bind, $this->bind));
 
         if (empty($rows)) {
             return $default;
@@ -113,12 +115,12 @@ class Query extends BaseQuery
         $this->ensureTable();
         $this->applyGlobalScopes();
 
-        $opts = $this->options;
-        $opts['field'] = [$field];
+        $state = $this->state->copy();
+        $state->field = [$field];
 
-        [$sql, $bind] = $this->builder->select($opts);
+        $compiled = $this->builder->compileSelect($state);
 
-        $rows = $this->connection->query($sql, array_merge($bind, $this->bind));
+        $rows = $this->connection->query($compiled->statement, array_merge($compiled->bind, $this->bind));
 
         if (empty($rows)) {
             return [];
@@ -141,12 +143,12 @@ class Query extends BaseQuery
         $this->ensureTable();
         $this->applyGlobalScopes();
 
-        [$sql, $bind] = $this->builder->select($this->options);
+        $compiled = $this->builder->compileSelect($this->state);
 
         // 未连接时 getPdo() 返回 false，直接 prepare() 会 fatal；先惰性建立连接
         $pdo = $this->connection->getPdo() ?: $this->connection->connect();
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute(array_merge($bind, $this->bind));
+        $stmt = $pdo->prepare($compiled->statement);
+        $stmt->execute(array_merge($compiled->bind, $this->bind));
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             yield $row;
@@ -157,8 +159,8 @@ class Query extends BaseQuery
     {
         $this->ensureTable();
 
-        [$sql, $bind] = $this->builder->insert($this->options['table'], $data, $this->options['comment'] ?? null);
-        $this->connection->execute($sql, $bind);
+        $compiled = $this->builder->compileInsert($this->state->table, $data, $this->state->comment ?: null);
+        $this->connection->execute($compiled->statement, $compiled->bind);
 
         return (int)$this->connection->getLastInsID($this);
     }
@@ -172,8 +174,8 @@ class Query extends BaseQuery
 
         $this->ensureTable();
 
-        [$sql, $bind] = $this->builder->insertAll($this->options['table'], $dataList, $this->options['comment'] ?? null);
-        $this->connection->execute($sql, $bind);
+        $compiled = $this->builder->compileInsertAll($this->state->table, $dataList, $this->state->comment ?: null);
+        $this->connection->execute($compiled->statement, $compiled->bind);
 
         return count($dataList);
     }
@@ -183,14 +185,9 @@ class Query extends BaseQuery
         $this->ensureTable();
         $this->applyGlobalScopes();
 
-        [$sql, $bind] = $this->builder->update(
-            $this->options['table'],
-            $data,
-            $this->options['where'],
-            $this->options
-        );
+        $compiled = $this->builder->compileUpdate($this->state->table, $data, $this->state);
 
-        return $this->connection->execute($sql, array_merge($bind, $this->bind));
+        return $this->connection->execute($compiled->statement, array_merge($compiled->bind, $this->bind));
     }
 
     /**
@@ -201,13 +198,9 @@ class Query extends BaseQuery
         $this->ensureTable();
         $this->applyGlobalScopes();
 
-        [$sql, $bind] = $this->builder->delete(
-            $this->options['table'],
-            $this->options['where'],
-            $this->options
-        );
+        $compiled = $this->builder->compileDelete($this->state->table, $this->state);
 
-        return $this->connection->execute($sql, array_merge($bind, $this->bind));
+        return $this->connection->execute($compiled->statement, array_merge($compiled->bind, $this->bind));
     }
 
     /**
@@ -220,9 +213,9 @@ class Query extends BaseQuery
         $this->ensureTable();
         $this->applyGlobalScopes();
 
-        [$sql] = $this->builder->select($this->options);
+        $compiled = $this->builder->compileSelect($this->state);
 
-        return $sub ? '( ' . $sql . ' )' : $sql;
+        return $sub ? '( ' . $compiled->statement . ' )' : $compiled->statement;
     }
 
     /**

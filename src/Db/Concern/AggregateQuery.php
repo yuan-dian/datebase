@@ -42,20 +42,23 @@ trait AggregateQuery
             throw new \InvalidArgumentException("Invalid aggregate field: {$field}");
         }
 
-        $opts = $this->options;
-        unset($opts['order'], $opts['limit'], $opts['offset']);
+        $state = $this->state->copy();
+        $state->order = [];
+        $state->limit = null;
+        $state->offset = null;
 
         // 带 GROUP BY 时：子查询包裹，避免 COUNT GROUP BY 只取第一组（ThinkPHP #2670 同源问题）
-        if (!empty($opts['group'])) {
-            $opts['field'] = ['*'];
-            [$subSql, $subBind] = $this->getBuilder()->select($opts);
+        if (!empty($state->group)) {
+            $state->field = ['*'];
+            $subCompiled = $this->getBuilder()->compileSelect($state);
 
-            $sql = "SELECT {$fn}({$field}) AS __agg FROM ({$subSql}) AS __agg_tmp";
-            $bind = array_merge($subBind, $this->bind);
+            $sql = "SELECT {$fn}({$field}) AS __agg FROM ({$subCompiled->statement}) AS __agg_tmp";
+            $bind = array_merge($subCompiled->bind, $this->bind);
         } else {
-            $opts['field'] = [new Raw("{$fn}($field) AS __agg")];
-            [$sql, $bind] = $this->getBuilder()->select($opts);
-            $bind = array_merge($bind, $this->bind);
+            $state->field = [new Raw("{$fn}($field) AS __agg")];
+            $compiled = $this->getBuilder()->compileSelect($state);
+            $sql = $compiled->statement;
+            $bind = array_merge($compiled->bind, $this->bind);
         }
 
         /** @var \yuandian\Database\Db\PDOConnection $connection 聚合仅在 PDO 连接上执行（Mongo 走覆写路径） */

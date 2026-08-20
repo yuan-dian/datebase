@@ -10,6 +10,7 @@ use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
 use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connector\Mongo as MongoConnection;
+use yuandian\Database\Db\State\WhereGroup;
 
 /**
  * MongoDB 查询器（Db 层）
@@ -31,7 +32,9 @@ class MongoQuery extends BaseQuery
 
     protected function newSubQuery(): static
     {
-        return new static($this->connection, $this->options['table'] ?? null);
+        $query = new static($this->connection, $this->state->table ?: null);
+        $query->state = $this->state->copy();
+        return $query;
     }
 
     public function command(
@@ -110,7 +113,7 @@ class MongoQuery extends BaseQuery
 
     public function inc(string $field, float|int $step = 1): static
     {
-        $this->options['data'][$field] = ['$inc', $step];
+        $this->state->data[$field] = ['$inc', $step];
 
         return $this;
     }
@@ -122,7 +125,7 @@ class MongoQuery extends BaseQuery
 
     public function table(string $table): static
     {
-        $this->options['table'] = $table;
+        $this->state->table = $table;
 
         return $this;
     }
@@ -134,70 +137,70 @@ class MongoQuery extends BaseQuery
 
     public function typeMap($typeMap): static
     {
-        $this->options['typeMap'] = $typeMap;
+        $this->state->extra['typeMap'] = $typeMap;
 
         return $this;
     }
 
     public function awaitData(bool $awaitData): static
     {
-        $this->options['awaitData'] = $awaitData;
+        $this->state->extra['awaitData'] = $awaitData;
 
         return $this;
     }
 
     public function batchSize(int $batchSize): static
     {
-        $this->options['batchSize'] = $batchSize;
+        $this->state->extra['batchSize'] = $batchSize;
 
         return $this;
     }
 
     public function exhaust(bool $exhaust): static
     {
-        $this->options['exhaust'] = $exhaust;
+        $this->state->extra['exhaust'] = $exhaust;
 
         return $this;
     }
 
     public function modifiers(array $modifiers): static
     {
-        $this->options['modifiers'] = $modifiers;
+        $this->state->extra['modifiers'] = $modifiers;
 
         return $this;
     }
 
     public function noCursorTimeout(bool $noCursorTimeout): static
     {
-        $this->options['noCursorTimeout'] = $noCursorTimeout;
+        $this->state->extra['noCursorTimeout'] = $noCursorTimeout;
 
         return $this;
     }
 
     public function oplogReplay(bool $oplogReplay): static
     {
-        $this->options['oplogReplay'] = $oplogReplay;
+        $this->state->extra['oplogReplay'] = $oplogReplay;
 
         return $this;
     }
 
     public function partial(bool $partial): static
     {
-        $this->options['partial'] = $partial;
+        $this->state->extra['partial'] = $partial;
 
         return $this;
     }
 
     public function maxTimeMS(string $maxTimeMS): static
     {
-        $this->options['maxTimeMS'] = $maxTimeMS;
+        $this->state->extra['maxTimeMS'] = $maxTimeMS;
 
         return $this;
     }
 
     public function collation(array $collation): static
     {
-        $this->options['collation'] = $collation;
+        $this->state->extra['collation'] = $collation;
 
         return $this;
     }
@@ -226,7 +229,7 @@ class MongoQuery extends BaseQuery
             }
         }
 
-        $this->options['projection'] = $projection;
+        $this->state->field = $projection;
 
         return $this;
     }
@@ -250,21 +253,21 @@ class MongoQuery extends BaseQuery
             }
         }
 
-        $this->options['projection'] = $projection;
+        $this->state->field = $projection;
 
         return $this;
     }
 
     public function skip(int $skip): static
     {
-        $this->options['skip'] = $skip;
+        $this->state->offset = $skip;
 
         return $this;
     }
 
     public function slaveOk(bool $slaveOk): static
     {
-        $this->options['slaveOk'] = $slaveOk;
+        $this->state->extra['slaveOk'] = $slaveOk;
 
         return $this;
     }
@@ -275,7 +278,7 @@ class MongoQuery extends BaseQuery
         // 偏移分页请用 skip()/offset()。此前双参签名 limit(offset, length)
         // 与 PDO 侧语义不一致（Mongo 下 limit(10) 会从第 10 条开始），
         // 已移除以免跨驱动代码产生静默行为差异。
-        $this->options['limit'] = $limit;
+        $this->state->limit = $limit;
 
         return $this;
     }
@@ -296,12 +299,12 @@ class MongoQuery extends BaseQuery
         };
 
         if (is_array($field)) {
-            $this->options['sort'] = [];
+            $this->state->order = [];
             foreach ($field as $f => $val) {
-                $this->options['sort'][$convert((string)$f)] = 'asc' == strtolower((string)$val) ? 1 : -1;
+                $this->state->order[$convert((string)$f)] = 'asc' == strtolower((string)$val) ? 1 : -1;
             }
         } else {
-            $this->options['sort'][$convert($field)] = 'asc' == strtolower($direction) ? 1 : -1;
+            $this->state->order[$convert($field)] = 'asc' == strtolower($direction) ? 1 : -1;
         }
 
         return $this;
@@ -309,14 +312,14 @@ class MongoQuery extends BaseQuery
 
     public function tailable(bool $tailable): static
     {
-        $this->options['tailable'] = $tailable;
+        $this->state->extra['tailable'] = $tailable;
 
         return $this;
     }
 
     public function writeConcern(WriteConcern $writeConcern): static
     {
-        $this->options['writeConcern'] = $writeConcern;
+        $this->state->extra['writeConcern'] = $writeConcern;
 
         return $this;
     }
@@ -345,13 +348,35 @@ class MongoQuery extends BaseQuery
         // 保证软删过滤与 PDO 侧 applyGlobalScopes 语义一致。
         $this->applyGlobalScopes();
 
-        $options = $this->options;
+        $state = $this->state;
 
-        if (empty($options['table'])) {
-            $options['table'] = $this->options['table'];
+        $options = [
+            'table'      => $state->table,
+            'where'      => $state->where,
+            'data'       => $state->data,
+            'limit'      => $state->limit ?? 0,
+        ];
+
+        if ($state->field !== ['*']) {
+            $options['projection'] = $state->field;
         }
 
-        foreach (['where', 'data', 'projection', 'filter', 'json', 'with_attr', 'with_relation_attr'] as $name) {
+        if (!empty($state->order)) {
+            $options['sort'] = $state->order;
+        }
+
+        if ($state->comment !== '') {
+            $options['comment'] = $state->comment;
+        }
+
+        // 驱动专属键（typeMap/awaitData/batchSize/exhaust/modifiers/noCursorTimeout/
+        // oplogReplay/partial/maxTimeMS/collation/tailable/writeConcern/slaveOk/
+        // fetch_cursor/master/field_type 等）从 extra 桶合并
+        foreach ($state->extra as $name => $value) {
+            $options[$name] = $value;
+        }
+
+        foreach (['filter', 'json', 'with_attr', 'with_relation_attr'] as $name) {
             if (!isset($options[$name])) {
                 $options[$name] = [];
             }
@@ -374,10 +399,6 @@ class MongoQuery extends BaseQuery
             $options['typeMap'] = $this->connection->getConfig('type_map');
         }
 
-        if (!isset($options['limit'])) {
-            $options['limit'] = 0;
-        }
-
         foreach (['master', 'fetch_cursor'] as $name) {
             if (!isset($options[$name])) {
                 $options[$name] = false;
@@ -395,23 +416,16 @@ class MongoQuery extends BaseQuery
         }
 
         // chunk/offset 分页：builder 只认 skip，把 Db 层通用的 offset 映射过去
-        if (isset($options['offset'])) {
-            $options['skip'] = $options['offset'];
-            unset($options['offset']);
+        if ($state->offset !== null) {
+            $options['skip'] = $state->offset;
         }
-
-        $this->options = $options;
 
         return $options;
     }
 
     public function getFieldsType(): array
     {
-        if (!empty($this->options['field_type'])) {
-            return $this->options['field_type'];
-        }
-
-        return [];
+        return $this->state->extra['field_type'] ?? [];
     }
 
     public function getFieldType(string $field): ?string
@@ -443,7 +457,7 @@ class MongoQuery extends BaseQuery
      */
     public function find(): array|object|null
     {
-        $this->options['limit'] = 1;
+        $this->state->limit = 1;
         $row = $this->connection->find($this);
 
         return $row ?: null;
@@ -459,7 +473,7 @@ class MongoQuery extends BaseQuery
 
     public function insert(array $data): string
     {
-        $this->options['data'] = $this->toSnakeKeys($data);
+        $this->state->data = $this->toSnakeKeys($data);
 
         return (string)$this->connection->insert($this, true);
     }
@@ -476,7 +490,7 @@ class MongoQuery extends BaseQuery
 
     public function update(array $data): int
     {
-        $this->options['data'] = $this->toSnakeKeys($data);
+        $this->state->data = $this->toSnakeKeys($data);
 
         return $this->connection->update($this);
     }
@@ -503,6 +517,84 @@ class MongoQuery extends BaseQuery
     public function getBuilder(): Builder|MongoBuilder
     {
         return $this->builder;
+    }
+
+    /**
+     * 兼容桥：Connector\Mongo / Builder\Mongo（Task 7.2 前仍消费 options 数组）从 state 派生
+     */
+    public function getOptions(): array
+    {
+        return $this->parseOptions();
+    }
+
+    public function getOption(string $name): mixed
+    {
+        $options = $this->parseOptions();
+
+        return $options[$name] ?? null;
+    }
+
+    public function setOption(string $name, mixed $value): void
+    {
+        switch ($name) {
+            case 'table':
+                $this->state->table = (string)$value;
+                break;
+            case 'where':
+                $this->state->where = $value instanceof WhereGroup ? $value : new WhereGroup();
+                break;
+            case 'data':
+                $this->state->data = $value;
+                break;
+            case 'projection':
+                $this->state->field = $value;
+                break;
+            case 'limit':
+                $this->state->limit = $value;
+                break;
+            case 'skip':
+                $this->state->offset = $value;
+                break;
+            case 'sort':
+                $this->state->order = $value;
+                break;
+            case 'comment':
+                $this->state->comment = (string)$value;
+                break;
+            default:
+                $this->state->extra[$name] = $value;
+                break;
+        }
+    }
+
+    public function removeOption(string $name): void
+    {
+        switch ($name) {
+            case 'where':
+                $this->state->where = new WhereGroup();
+                break;
+            case 'data':
+                $this->state->data = [];
+                break;
+            case 'projection':
+                $this->state->field = ['*'];
+                break;
+            case 'limit':
+                $this->state->limit = null;
+                break;
+            case 'skip':
+                $this->state->offset = null;
+                break;
+            case 'sort':
+                $this->state->order = [];
+                break;
+            case 'comment':
+                $this->state->comment = '';
+                break;
+            default:
+                unset($this->state->extra[$name]);
+                break;
+        }
     }
 
     protected function applyGlobalScopes(): void

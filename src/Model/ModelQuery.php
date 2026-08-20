@@ -52,11 +52,12 @@ class ModelQuery extends Query
     }
 
     /**
-     * chunk 分块时同步预加载名（withRelations 独立于 options，需经钩子拷贝）
+     * chunk 分块时同步查询状态与预加载名（withRelations 独立于 state，需经钩子拷贝）
      */
     protected function copyExtraState(BaseQuery $query): void
     {
         /** @var ModelQuery $query chunk 的 newSubQuery 返回 static，运行时必为 ModelQuery */
+        $query->state = $this->state->copy();
         if (!empty($this->withRelations)) {
             $query->withRelations = $this->withRelations;
         }
