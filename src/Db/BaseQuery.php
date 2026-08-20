@@ -33,7 +33,6 @@ abstract class BaseQuery
         'having' => [],
         'lock'   => false,
         'union'       => [],
-        'force_delete' => false,
         'comment' => '',
     ];
 
@@ -349,6 +348,29 @@ abstract class BaseQuery
         return $this;
     }
 
+    /**
+     * 恢复指定全局作用域（撤销 withoutGlobalScope）
+     *
+     * 内置软删作用域名：softDelete。其他名称不匹配任何作用域时保持原过滤。
+     */
+    public function withGlobalScope(string $scope): static
+    {
+        $index = array_search($scope, $this->removedScopes, true);
+        if ($index !== false) {
+            array_splice($this->removedScopes, $index, 1);
+        }
+        return $this;
+    }
+
+    /**
+     * 恢复全部全局作用域（撤销 withoutGlobalScopes）
+     */
+    public function withGlobalScopes(): static
+    {
+        $this->withoutScopes = false;
+        return $this;
+    }
+
     // ======================== 公共工具 ========================
 
     public function getOptions(): array
@@ -393,6 +415,8 @@ abstract class BaseQuery
             $query = $this->newSubQuery();
             $query->options = $this->options;
             $this->copyExtraState($query);
+            $query->withoutScopes = $this->withoutScopes;
+            $query->removedScopes = $this->removedScopes;
             $query->options['limit'] = $count;
             $query->options['offset'] = ($page - 1) * $count;
             $query->bind = $this->bind;
@@ -418,18 +442,6 @@ abstract class BaseQuery
      */
     protected function copyExtraState(BaseQuery $query): void
     {
-    }
-
-    /**
-     * 强制物理删除（跳过软删除与全局作用域）
-     *
-     * 模型层专用：ModelQuery::delete() 读取该选项决定是否跳过软删除。
-     * 查询级一步物理删除见 Query::forceDelete()（终端方法）。
-     */
-    public function force(): static
-    {
-        $this->options['force_delete'] = true;
-        return $this;
     }
 
     /**

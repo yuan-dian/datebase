@@ -172,12 +172,6 @@ class Mongo
             }
         }
 
-        $options = $query->getOptions();
-        if (!empty($options['soft_delete'])) {
-            [$field, $condition] = $options['soft_delete'];
-            $filter['$and'][] = $this->parseWhereItem($query, $field, $condition);
-        }
-
         return $filter;
     }
 

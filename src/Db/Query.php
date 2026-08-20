@@ -211,22 +211,6 @@ class Query extends BaseQuery
     }
 
     /**
-     * 物理删除（跳过软删除与全局作用域）
-     */
-    public function forceDelete(): int
-    {
-        $this->ensureTable();
-
-        [$sql, $bind] = $this->builder->delete(
-            $this->options['table'],
-            $this->options['where'],
-            $this->options
-        );
-
-        return $this->connection->execute($sql, array_merge($bind, $this->bind));
-    }
-
-    /**
      * 构建当前查询的 SQL 而不执行
      *
      * @param bool $sub 是否包裹括号（用于子查询嵌入场景）
