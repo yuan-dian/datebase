@@ -12,6 +12,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use yuandian\Database\Db\Builder\Oracle;
 use yuandian\Database\Db\Connector\Sqlite;
+use yuandian\Database\Db\State\QueryState;
 
 $failures = 0;
 function check(bool $cond, string $label): void
@@ -24,7 +25,22 @@ function check(bool $cond, string $label): void
 }
 
 $conn = new Sqlite(['type' => 'sqlite', 'database' => ':memory:']);
-$builder = new Oracle($conn);
+// Task 5 阶段 Connection 尚未 implements QueryContext（Task 7 收口），
+// 用匿名类委托连接实现最小契约
+$context = new class($conn) implements \yuandian\Database\Db\QueryContext {
+    public function __construct(private \yuandian\Database\Db\Connection $conn) {}
+
+    public function getTablePrefix(): string
+    {
+        return $this->conn->getTablePrefix();
+    }
+
+    public function newQuery(?string $table = null): \yuandian\Database\Db\BaseQuery
+    {
+        return $this->conn->table($table);
+    }
+};
+$builder = new Oracle($context);
 
 function buildSelect(Oracle $builder, array $overrides = []): string
 {
@@ -32,7 +48,6 @@ function buildSelect(Oracle $builder, array $overrides = []): string
         'table' => 'users',
         'alias' => '',
         'field' => ['*'],
-        'where' => [],
         'join' => [],
         'order' => [],
         'group' => [],
@@ -41,8 +56,22 @@ function buildSelect(Oracle $builder, array $overrides = []): string
         'union' => [],
         'comment' => '',
     ], $overrides);
-    [$sql] = $builder->select($options);
-    return $sql;
+
+    $state = new QueryState();
+    $state->table = $options['table'];
+    $state->alias = $options['alias'];
+    $state->field = $options['field'];
+    $state->join = $options['join'];
+    $state->order = $options['order'];
+    $state->group = $options['group'];
+    $state->having = $options['having'];
+    $state->lock = $options['lock'];
+    $state->union = $options['union'];
+    $state->comment = $options['comment'];
+    $state->limit = $options['limit'] ?? null;
+    $state->offset = $options['offset'] ?? null;
+
+    return $builder->compileSelect($state)->statement;
 }
 
 // ===================== 测试 1: limit + offset 同时存在，OFFSET 必须在 FETCH 前 =====================

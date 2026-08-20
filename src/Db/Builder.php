@@ -5,34 +5,37 @@ declare(strict_types=1);
 namespace yuandian\Database\Db;
 
 use Closure;
+use yuandian\Database\Db\State\QueryState;
+use yuandian\Database\Db\State\WhereCondition;
+use yuandian\Database\Db\State\WhereGroup;
 
 class Builder extends BaseBuilder
 {
 
-    public function select(array $options): array
+    public function compileSelect(QueryState $state): Compiled
     {
         $bind = [];
 
         $sql = strtr($this->selectSql, [
-            '%TABLE%'   => $this->parseTable($options['table'], $options['alias'] ?? null),
-            '%DISTINCT%' => $this->parseDistinct($options['distinct'] ?? false),
-            '%FIELD%'   => $this->parseField($options['field'] ?? ['*']),
-            '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
-            '%WHERE%'   => $this->parseWhere($options['where'] ?? [], $bind),
-            '%GROUP%'   => $this->parseGroup($options['group'] ?? []),
-            '%HAVING%'  => $this->parseHaving($options['having'] ?? []),
-            '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
-            '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, $options['offset'] ?? null),
-            '%UNION%'   => $this->parseUnion($options['union'] ?? [], $bind),
-            '%LOCK%'    => $this->parseLock($options['lock'] ?? false),
-            '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
-            '%FORCE%'   => $this->parseForce($options['force_index'] ?? ''),
+            '%TABLE%'    => $this->parseTable($state->table, $state->alias ?: null),
+            '%DISTINCT%' => $this->parseDistinct($state->distinct),
+            '%FIELD%'    => $this->parseField($state->field),
+            '%JOIN%'     => $this->parseJoin($state->join),
+            '%WHERE%'    => $this->parseWhere($state->where, $bind),
+            '%GROUP%'    => $this->parseGroup($state->group),
+            '%HAVING%'   => $this->parseHaving($state->having),
+            '%ORDER%'    => $this->parseOrder($state->order),
+            '%LIMIT%'    => $this->parseLimit($state->limit, $state->offset),
+            '%UNION%'    => $this->parseUnion($state->union, $bind),
+            '%LOCK%'     => $this->parseLock($state->lock),
+            '%COMMENT%'  => $this->parseComment($state->comment),
+            '%FORCE%'    => $this->parseForce($state->forceIndex),
         ]);
 
-        return [trim($sql), $bind];
+        return new Compiled(trim($sql), $bind);
     }
 
-    public function insert(string $table, array $data, ?string $comment = null): array
+    public function compileInsert(string $table, array $data, ?string $comment = null): Compiled
     {
         $fields = array_keys($data);
         $values = array_values($data);
@@ -55,13 +58,13 @@ class Builder extends BaseBuilder
             '%COMMENT%' => $this->parseComment($comment ?? ''),
         ]);
 
-        return [$sql, $bind];
+        return new Compiled($sql, $bind);
     }
 
-    public function insertAll(string $table, array $dataList, ?string $comment = null): array
+    public function compileInsertAll(string $table, array $dataList, ?string $comment = null): Compiled
     {
         if (empty($dataList)) {
-            return ['', []];
+            return new Compiled('', []);
         }
 
         $fields = array_keys($dataList[0]);
@@ -89,21 +92,21 @@ class Builder extends BaseBuilder
             '%COMMENT%' => $this->parseComment($comment ?? ''),
         ]);
 
-        return [$sql, $bind];
+        return new Compiled($sql, $bind);
     }
 
     public function selectInsert(BaseQuery $query, array $fields, string $table): array
     {
-        $sourceSql = $this->select($query->getOptions());
+        $source = $this->compileSelect($query->getState());
 
         $sql = strtr('INSERT INTO %TABLE% (%FIELD%) %DATA% %COMMENT%', [
             '%TABLE%'   => $this->parseTable($table),
             '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $fields)),
-            '%DATA%'    => $sourceSql[0],
+            '%DATA%'    => $source->statement,
             '%COMMENT%' => '',
         ]);
 
-        return [trim($sql), $sourceSql[1]];
+        return [trim($sql), $source->bind];
     }
 
     public function insertAllByKeys(string $table, array $keys, array $values): array
@@ -139,7 +142,7 @@ class Builder extends BaseBuilder
         return [$sql, $bind];
     }
 
-    public function update(string $table, array $data, array $where, array $options = []): array
+    public function compileUpdate(string $table, array $data, QueryState $state): Compiled
     {
         $bind = [];
         $set = [];
@@ -159,31 +162,31 @@ class Builder extends BaseBuilder
         $sql = strtr($this->updateSql, [
             '%TABLE%'   => $this->parseTable($table),
             '%SET%'     => implode(', ', $set),
-            '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
-            '%WHERE%'   => $this->parseWhere($where, $whereBind),
-            '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
-            '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, null),
-            '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
+            '%JOIN%'    => $this->parseJoin($state->join),
+            '%WHERE%'   => $this->parseWhere($state->where, $whereBind),
+            '%ORDER%'   => $this->parseOrder($state->order),
+            '%LIMIT%'   => $this->parseLimit($state->limit, null),
+            '%COMMENT%' => $this->parseComment($state->comment),
         ]);
 
-        return [trim($sql), array_merge($bind, $whereBind)];
+        return new Compiled(trim($sql), array_merge($bind, $whereBind));
     }
 
-    public function delete(string $table, array $where, array $options = []): array
+    public function compileDelete(string $table, QueryState $state): Compiled
     {
         $bind = [];
 
         $sql = strtr($this->deleteSql, [
             '%TABLE%'   => $this->parseTable($table),
             '%USING%'   => '',
-            '%JOIN%'    => $this->parseJoin($options['join'] ?? []),
-            '%WHERE%'   => $this->parseWhere($where, $bind),
-            '%ORDER%'   => $this->parseOrder($options['order'] ?? []),
-            '%LIMIT%'   => $this->parseLimit($options['limit'] ?? null, null),
-            '%COMMENT%' => $this->parseComment($options['comment'] ?? ''),
+            '%JOIN%'    => $this->parseJoin($state->join),
+            '%WHERE%'   => $this->parseWhere($state->where, $bind),
+            '%ORDER%'   => $this->parseOrder($state->order),
+            '%LIMIT%'   => $this->parseLimit($state->limit, null),
+            '%COMMENT%' => $this->parseComment($state->comment),
         ]);
 
-        return [trim($sql), $bind];
+        return new Compiled(trim($sql), $bind);
     }
 
     protected function parseTable(string|array $table, ?string $alias = null): string
@@ -259,70 +262,58 @@ class Builder extends BaseBuilder
         return $sql;
     }
 
-    protected function parseWhere(array $where, array &$bind): string
+    protected function parseWhere(WhereGroup $where, array &$bind): string
     {
         $whereStr = $this->parseWhereGroup($where, $bind);
 
-        return empty($whereStr) ? '' : ' WHERE ' . $whereStr;
+        return $whereStr === '' ? '' : ' WHERE ' . $whereStr;
     }
 
     /**
      * 解析条件组，返回不带 WHERE 前缀的条件片段
      *
-     * 嵌套闭包（子查询条件）递归调用本方法并包裹括号
+     * AND 组与 OR 组各自组内同逻辑连接，组间用 OR 连接（与原 $options['where'] 语义一致）
      */
-    protected function parseWhereGroup(array $where, array &$bind): string
+    protected function parseWhereGroup(WhereGroup $where, array &$bind): string
     {
-        if (empty($where)) {
+        if ($where->isEmpty()) {
             return '';
         }
 
-        $whereStr = '';
-
-        foreach ($where as $logic => $conditions) {
-            if (!is_array($conditions)) {
-                continue;
+        $clauses = [];
+        foreach (['and' => ' AND ', 'or' => ' OR '] as $prop => $connector) {
+            $group = [];
+            foreach ($where->{$prop} as $condition) {
+                $clause = $this->parseWhereCondition($condition, $bind);
+                if ($clause !== '') {
+                    $group[] = $clause;
+                }
             }
-
-            foreach ($conditions as $condition) {
-                // Handle Raw expressions
-                if ($condition instanceof Raw) {
-                    $clause = $condition->getValue();
-                    if (!empty($condition->getBind())) {
-                        $bind = array_merge($bind, $condition->getBind());
-                    }
-                } // Handle Closure (nested conditions)
-                elseif ($condition instanceof \Closure) {
-                    $subBind = [];
-                    $subWhere = $condition();
-                    $nested = $this->parseWhereGroup($subWhere, $subBind);
-                    $clause = empty($nested) ? '' : '( ' . $nested . ' )';
-                    $bind = array_merge($bind, $subBind);
-                } // Handle array conditions [field, operator, value]
-                elseif (is_array($condition) && count($condition) >= 2) {
-                    $field = $condition[0];
-                    $operator = strtoupper($condition[1]);
-                    $value = $condition[2] ?? null;
-
-                    $clause = $this->parseWhereItem($field, $operator, $value, $bind);
-                } else {
-                    continue;
-                }
-
-                if (empty($clause)) {
-                    continue;
-                }
-
-                $connector = $logic === 'OR' ? ' OR ' : ' AND ';
-                if (empty($whereStr)) {
-                    $whereStr = $clause;
-                } else {
-                    $whereStr .= $connector . $clause;
-                }
+            if ($group !== []) {
+                $clauses[] = implode($connector, $group);
             }
         }
 
-        return $whereStr;
+        return implode(' OR ', $clauses);
+    }
+
+    /**
+     * 按 value 类型分发单条条件：
+     * Raw → 原生 SQL 片段（合并自带 bind）；WhereGroup → 递归括号包裹；其余 → parseWhereItem
+     */
+    protected function parseWhereCondition(WhereCondition $c, array &$bind): string
+    {
+        if ($c->value instanceof Raw) {
+            $bind = array_merge($bind, $c->value->getBind());
+            return $c->value->getValue();
+        }
+
+        if ($c->value instanceof WhereGroup) {
+            $nested = $this->parseWhereGroup($c->value, $bind);
+            return $nested === '' ? '' : '( ' . $nested . ' )';
+        }
+
+        return $this->parseWhereItem($c->field, $c->operator, $c->value, $bind);
     }
 
     protected function parseWhereItem(string $field, string $exp, mixed $value, array &$bind): string
@@ -330,17 +321,20 @@ class Builder extends BaseBuilder
         $exp = strtoupper($exp);
         $key = $this->parseKey($field);
 
-        foreach ($this->parser as $method => $operators) {
-            if (in_array($exp, $operators)) {
-                return $this->$method($key, $exp, $value, $field, $bind);
-            }
-        }
+        $p = $this->parser;
 
-        if (isset($this->exp[$exp])) {
-            $exp = $this->exp[$exp];
-        }
-
-        return $this->parseCompare($key, $exp, $value, $field, $bind);
+        return match (true) {
+            in_array($exp, $p['parseLike'], true)        => $this->parseLike($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseBetween'], true)     => $this->parseBetween($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseIn'], true)          => $this->parseIn($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseExp'], true)         => $this->parseExp($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseNull'], true)        => $this->parseNull($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseBetweenTime'], true) => $this->parseBetweenTime($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseTime'], true)        => $this->parseTime($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseExists'], true)      => $this->parseExists($key, $exp, $value, $field, $bind),
+            in_array($exp, $p['parseColumn'], true)      => $this->parseColumn($key, $exp, $value, $field, $bind),
+            default                                      => $this->parseCompare($key, $this->exp[$exp] ?? $exp, $value, $field, $bind),
+        };
     }
 
     protected function parseCompare(string $key, string $exp, mixed $value, string $field, array &$bind): string
@@ -352,11 +346,12 @@ class Builder extends BaseBuilder
         }
 
         if ($value instanceof Closure) {
-            $subQuery = $this->connection->table();
+            $subQuery = $this->context->newQuery();
             $value($subQuery);
-            $subSql = $this->select($subQuery->getOptions());
-            $bind = array_merge($bind, $subSql[1]);
-            return $key . ' ' . $exp . ' ( ' . $subSql[0] . ' )';
+            $subState = $subQuery->getState();
+            $subSql = $this->compileSelect($subState);
+            $bind = array_merge($bind, $subSql->bind);
+            return $key . ' ' . $exp . ' ( ' . $subSql->statement . ' )';
         }
 
         if ($exp === '=' && is_null($value)) {
@@ -448,11 +443,12 @@ class Builder extends BaseBuilder
         }
 
         if ($value instanceof Closure) {
-            $subQuery = $this->connection->table();
+            $subQuery = $this->context->newQuery();
             $value($subQuery);
-            $subSql = $this->select($subQuery->getOptions());
-            $bind = array_merge($bind, $subSql[1]);
-            return $exp . ' ( ' . $subSql[0] . ' )';
+            $subState = $subQuery->getState();
+            $subSql = $this->compileSelect($subState);
+            $bind = array_merge($bind, $subSql->bind);
+            return $exp . ' ( ' . $subSql->statement . ' )';
         }
 
         return $exp . ' ( ' . $value . ' )';
@@ -539,22 +535,22 @@ class Builder extends BaseBuilder
 
         $sql = '';
         foreach ($union as $u) {
-            // 二次防御：即使 options 被直接写入，type 也仅接受 UNION / UNION ALL
+            // 二次防御：即使 state 被直接写入，type 也仅接受 UNION / UNION ALL
             $type = $u['type'] ?? 'UNION';
             $type = preg_match('/^UNION( ALL)?$/i', $type) ? strtoupper($type) : 'UNION';
 
             if ($u['query'] instanceof BaseQuery) {
-                $subSql = $this->select($u['query']->getOptions());
-                $sub = $subSql[0];
-                $subOpts = $u['query']->getOptions();
-                if (!empty($subOpts['order']) || !empty($subOpts['limit'])) {
+                $subState = $u['query']->getState();
+                $subSql = $this->compileSelect($subState);
+                $sub = $subSql->statement;
+                if (!empty($subState->order) || !empty($subState->limit)) {
                     // 子查询自带 ORDER/LIMIT 时用派生表包裹：UNION 后的 ORDER/LIMIT
                     // 会被解释为整体排序分页（SQLite/MySQL/Oracle 通用）
                     $sub = 'SELECT * FROM ( ' . $sub . ' ) AS t';
                 }
                 $sql .= ' ' . $type . ' ' . $sub;
                 // 合并子查询的绑定参数，避免 UNION 子查询丢失 bind
-                $bind = array_merge($bind, $subSql[1]);
+                $bind = array_merge($bind, $subSql->bind);
             } elseif (is_string($u['query'])) {
                 // string 分支：SQLite 不支持 UNION 分支括号（UNION (SELECT ...) 语法错），
                 // 自带 ORDER/LIMIT 时与子查询分支一致用派生表限定作用域
@@ -615,8 +611,7 @@ class Builder extends BaseBuilder
 
     public function wrapTable(string $table): string
     {
-        $prefix = $this->connection->getTablePrefix();
-        return $this->wrap($prefix . $table);
+        return $this->wrap($this->context->getTablePrefix() . $table);
     }
 
     public function wrap(string $value): string

@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db;
 
-abstract class BaseBuilder
+use yuandian\Database\Db\State\QueryState;
+use yuandian\Database\Db\State\WhereGroup;
+
+abstract class BaseBuilder implements BuilderInterface
 {
-    protected Connection $connection;
+    protected QueryContext $context;
 
     protected array $exp = [
         'NOTLIKE'         => 'NOT LIKE',
@@ -40,22 +43,22 @@ abstract class BaseBuilder
 
     protected string $deleteSql = 'DELETE FROM %TABLE%%USING%%JOIN%%WHERE%%ORDER%%LIMIT% %COMMENT%';
 
-    public function __construct(Connection $connection)
+    public function __construct(QueryContext $context)
     {
-        $this->connection = $connection;
+        $this->context = $context;
     }
 
-    abstract public function select(array $options): array;
-    abstract public function insert(string $table, array $data): array;
-    abstract public function insertAll(string $table, array $dataList): array;
-    abstract public function update(string $table, array $data, array $where, array $options = []): array;
-    abstract public function delete(string $table, array $where, array $options = []): array;
+    abstract public function compileSelect(QueryState $state): Compiled;
+    abstract public function compileInsert(string $table, array $data, ?string $comment = null): Compiled;
+    abstract public function compileInsertAll(string $table, array $dataList, ?string $comment = null): Compiled;
+    abstract public function compileUpdate(string $table, array $data, QueryState $state): Compiled;
+    abstract public function compileDelete(string $table, QueryState $state): Compiled;
 
     abstract protected function parseTable(string|array $table, ?string $alias = null): string;
     abstract protected function parseField(array $fields): string;
     abstract protected function parseKey(string $key): string;
     abstract protected function parseJoin(array $joins): string;
-    abstract protected function parseWhere(array $where, array &$bind): string;
+    abstract protected function parseWhere(WhereGroup $where, array &$bind): string;
     abstract protected function parseGroup(array $group): string;
     abstract protected function parseHaving(array $having): string;
     abstract protected function parseOrder(array $order): string;
