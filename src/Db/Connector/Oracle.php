@@ -21,6 +21,7 @@ class Oracle extends PDOConnection
 
     public function getFields(string $tableName): array
     {
+        $this->initConnect();
         $tableName = strtoupper($tableName);
         $sql = "SELECT COLUMN_NAME, DATA_TYPE, NULLABLE
                 FROM ALL_TAB_COLUMNS
@@ -53,6 +54,7 @@ class Oracle extends PDOConnection
 
     public function getTables(string $dbName = ''): array
     {
+        $this->initConnect();
         $sql = "SELECT TABLE_NAME FROM USER_TABLES ORDER BY TABLE_NAME";
         $stmt = $this->linkID->query($sql);
         $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);

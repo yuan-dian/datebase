@@ -17,6 +17,7 @@ class Sqlite extends PDOConnection
 
     public function getFields(string $tableName): array
     {
+        $this->initConnect();
         $sql = "PRAGMA table_info({$tableName})";
         $stmt = $this->linkID->query($sql);
         $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -35,6 +36,7 @@ class Sqlite extends PDOConnection
 
     public function getTables(string $dbName = ''): array
     {
+        $this->initConnect();
         $sql = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'";
         $stmt = $this->linkID->query($sql);
 

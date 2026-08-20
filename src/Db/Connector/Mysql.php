@@ -20,6 +20,7 @@ class Mysql extends PDOConnection
 
     public function getFields(string $tableName): array
     {
+        $this->initConnect();
         $database = $this->getConfig('database');
         $sql = "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_KEY, EXTRA
                 FROM INFORMATION_SCHEMA.COLUMNS
@@ -44,6 +45,7 @@ class Mysql extends PDOConnection
 
     public function getTables(string $dbName = ''): array
     {
+        $this->initConnect();
         $database = $dbName ?: $this->getConfig('database');
         $sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = :database";
 
