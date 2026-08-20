@@ -283,30 +283,24 @@ check(
 
 // inc/dec 属性名自动转换（UPDATE SET share_id = share_id + 1）
 $incQ = RelationShareBase::whereEqual('shareId', $shareId)->inc('shareId', 1);
-$incRef = new ReflectionProperty($incQ, 'options');
-$incRef->setAccessible(true);
-$incOpts = $incRef->getValue($incQ);
+$incState = $incQ->getState();
 check(
-    isset($incOpts['data']['share_id']),
+    isset($incState->data['share_id']),
     'inc(属性名 shareId) 自动转列名'
 );
 
 $decQ = RelationShareBase::whereEqual('shareId', $shareId)->dec('userId', 1);
-$decRef = new ReflectionProperty($decQ, 'options');
-$decRef->setAccessible(true);
-$decOpts = $decRef->getValue($decQ);
+$decState = $decQ->getState();
 check(
-    isset($decOpts['data']['user_id']),
+    isset($decState->data['user_id']),
     'dec(属性名 userId) 自动转列名'
 );
 
 // Db 层 inc 不转换（契约隔离：纯 Query 钩子默认原样）
 $dbIncQ = DB::table('share_base')->whereEqual('share_id', $shareId)->inc('shareId', 1);
-$dbIncRef = new ReflectionProperty($dbIncQ, 'options');
-$dbIncRef->setAccessible(true);
-$dbIncOpts = $dbIncRef->getValue($dbIncQ);
+$dbIncState = $dbIncQ->getState();
 check(
-    isset($dbIncOpts['data']['shareId']),
+    isset($dbIncState->data['shareId']),
     'Db 层 inc camelCase 不转换（契约隔离）'
 );
 

@@ -514,7 +514,7 @@ class MongoQuery extends BaseQuery
         return $this->connection;
     }
 
-    public function getBuilder(): Builder|MongoBuilder
+    public function getBuilder(): MongoBuilder
     {
         return $this->builder;
     }

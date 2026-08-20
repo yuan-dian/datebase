@@ -303,7 +303,8 @@ class Builder extends BaseBuilder
      */
     protected function parseWhereCondition(WhereCondition $c, array &$bind): string
     {
-        if ($c->value instanceof Raw) {
+        // whereRaw 场景：field 为空，Raw 是整条 SQL 片段
+        if ($c->value instanceof Raw && $c->field === '') {
             $bind = array_merge($bind, $c->value->getBind());
             return $c->value->getValue();
         }
