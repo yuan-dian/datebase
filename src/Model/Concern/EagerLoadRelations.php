@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Concern;
 
+use yuandian\Database\Attribute\BelongsTo;
+use yuandian\Database\Attribute\BelongsToMany;
 use yuandian\Database\Attribute\HasMany;
 use yuandian\Database\Attribute\HasManyThrough;
 use yuandian\Database\Attribute\HasOne;
 use yuandian\Database\Attribute\HasOneThrough;
-use yuandian\Database\Attribute\BelongsTo;
-use yuandian\Database\Attribute\BelongsToMany;
 use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Model\Model;
-use yuandian\Database\Model\Relations\BelongsToRelation;
 use yuandian\Database\Model\Relations\BelongsToManyRelation;
+use yuandian\Database\Model\Relations\BelongsToRelation;
 use yuandian\Database\Model\Relations\HasManyRelation;
 use yuandian\Database\Model\Relations\HasManyThroughRelation;
 use yuandian\Database\Model\Relations\HasOneRelation;
@@ -69,8 +69,8 @@ trait EagerLoadRelations
                 $nestedMap[$parent][] = $nested;
             } else {
                 $flatNames[$name] = true;
-    }
-}
+            }
+        }
         // 第二遍：批量加载所有平铺关系，收集加载出的关联模型实例（供嵌套递归）
         $loadedInstances = [];
         foreach (array_keys($flatNames) as $name) {
@@ -79,12 +79,19 @@ trait EagerLoadRelations
                 continue;
             }
 
-            /** @var HasOne|HasMany|HasOneThrough|HasManyThrough $attr */
+            /** @var HasOne|HasMany|HasOneThrough|HasManyThrough|BelongsTo|BelongsToMany $attr */
             $attr = $info['attribute'];
 
             $relation = match ($info['type']) {
-                RelationType::HasOne => new HasOneRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey),
-                RelationType::HasMany => new HasManyRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey),
+                RelationType::HasOne => new HasOneRelation(
+                    $models[0], $attr->model, $attr->foreignKey, $attr->localKey
+                ),
+                RelationType::HasMany => new HasManyRelation(
+                    $models[0],
+                    $attr->model,
+                    $attr->foreignKey,
+                    $attr->localKey
+                ),
                 RelationType::HasOneThrough => new HasOneThroughRelation(
                     $models[0], $attr->model, $attr->through,
                     $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk

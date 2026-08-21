@@ -24,6 +24,7 @@ use yuandian\Tools\bean\BeanUtil;
 use yuandian\Tools\utils\SnowflakeUtil;
 use yuandian\Tools\utils\StrUtil;
 use yuandian\Tools\utils\UUIDUtil;
+use yuandian\Database\Model\Concern\HasEvents;
 
 /**
  * Class Model 模型基类
@@ -46,6 +47,8 @@ use yuandian\Tools\utils\UUIDUtil;
  */
 abstract class Model
 {
+    use HasEvents;
+
     // ===================== 静态缓存 =====================
 
     /** @var array<class-string, ModelMeta> 类名→元数据值对象 */
@@ -137,6 +140,10 @@ abstract class Model
      */
     public function insert(): bool
     {
+        // beforeInsert 在 getInsertData 之前触发，允许回调设置 computed 属性
+        if ($this->fireEvent('beforeInsert')) {
+            return false;
+        }
         return $this->doInsert($this->getInsertData());
     }
 
@@ -147,6 +154,10 @@ abstract class Model
      */
     public function update(): bool
     {
+        // beforeUpdate 在 getUpdateData 之前触发
+        if ($this->fireEvent('beforeUpdate')) {
+            return false;
+        }
         return $this->doUpdate($this->getUpdateData());
     }
 
@@ -165,11 +176,16 @@ abstract class Model
             return false;
         }
 
+        if ($this->fireEvent('beforeDelete')) {
+            return false;
+        }
+
         $affected = static::query()->where(static::getPkColumn(), '=', $pkVal)->delete();
 
         if ($affected > 0) {
             $this->exists = false;
             $this->softDeleted = true;
+            $this->fireEvent('afterDelete');
         }
 
         return $affected > 0;
@@ -189,10 +205,15 @@ abstract class Model
             return false;
         }
 
+        if ($this->fireEvent('beforeForceDelete')) {
+            return false;
+        }
+
         $affected = static::query()->force()->where(static::getPkColumn(), '=', $pkVal)->delete();
 
         if ($affected > 0) {
             $this->exists = false;
+            $this->fireEvent('afterForceDelete');
         }
 
         return $affected > 0;
@@ -212,11 +233,16 @@ abstract class Model
             return false;
         }
 
+        if ($this->fireEvent('beforeRestore')) {
+            return false;
+        }
+
         $affected = static::query()->where(static::getPkColumn(), '=', $pkVal)->restore();
 
         if ($affected > 0) {
             $this->softDeleted = false;
             $this->exists = true;
+            $this->fireEvent('afterRestore');
         }
 
         return $affected > 0;
@@ -483,6 +509,8 @@ abstract class Model
 
     protected function doInsert(array $data): bool
     {
+        // beforeInsert 已在 insert() 中触发
+
         $pkProp = static::getPkProperty();
         $pkColumn = static::getPkColumn();
         $pkType = static::getPkType();
@@ -537,6 +565,8 @@ abstract class Model
         $this->exists = true;
         $this->original = $data;
 
+        $this->fireEvent('afterInsert');
+
         return true;
     }
 
@@ -545,6 +575,8 @@ abstract class Model
         if (empty($data)) {
             return true;
         }
+
+        // beforeUpdate 已在 update() 中触发
 
         $pkProp = static::getPkProperty();
         $pkVal = $this->$pkProp ?? null;
@@ -575,6 +607,8 @@ abstract class Model
 
         // 同步快照：避免连续 save() 将已写字段再次判定为 dirty，重复执行 UPDATE
         $this->original = array_merge($this->original, $data);
+
+        $this->fireEvent('afterUpdate');
 
         return true;
     }

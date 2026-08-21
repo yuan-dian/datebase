@@ -8,7 +8,7 @@ use yuandian\Database\Db\Connector\Mongo as MongoConnection;
 use yuandian\Database\Db\MongoQuery;
 use yuandian\Database\Model\Concern\EagerLoadRelations;
 use yuandian\Database\Model\Concern\HasSoftDeleteQuery;
-use yuandian\Database\Model\Concern\HydratesModels;
+use yuandian\Database\Model\Concern\ConvertsToModels;
 use yuandian\Database\Model\Concern\ModelQueryShared;
 
 /**
@@ -23,7 +23,7 @@ use yuandian\Database\Model\Concern\ModelQueryShared;
  */
 class MongoModelQuery extends MongoQuery
 {
-    use HydratesModels;
+    use ConvertsToModels;
     use EagerLoadRelations;
     use HasSoftDeleteQuery;
     use ModelQueryShared;
@@ -80,6 +80,6 @@ class MongoModelQuery extends MongoQuery
             }
         }
 
-        return $this->hydrate($row);
+        return $this->toModel($row);
     }
 }

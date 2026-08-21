@@ -11,6 +11,7 @@ use yuandian\Database\Db\Connector\Mysql;
 use yuandian\Database\Db\Connector\Oracle;
 use yuandian\Database\Db\Connector\Sqlite;
 use yuandian\Database\Exceptions\DbException;
+use yuandian\Database\Model\Model;
 
 /**
  * 数据库连接管理器
@@ -58,6 +59,8 @@ class DbManager
         $this->connections = [];
         $this->listen = [];
         $this->log = [];
+
+        Model::resetEvents();
     }
 
     /**

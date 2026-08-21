@@ -8,7 +8,7 @@ use yuandian\Database\Db\Connection;
 use yuandian\Database\Db\Query;
 use yuandian\Database\Model\Concern\EagerLoadRelations;
 use yuandian\Database\Model\Concern\HasSoftDeleteQuery;
-use yuandian\Database\Model\Concern\HydratesModels;
+use yuandian\Database\Model\Concern\ConvertsToModels;
 use yuandian\Database\Model\Concern\ModelQueryShared;
 
 /**
@@ -23,7 +23,7 @@ use yuandian\Database\Model\Concern\ModelQueryShared;
  */
 class ModelQuery extends Query
 {
-    use HydratesModels;
+    use ConvertsToModels;
     use EagerLoadRelations;
     use HasSoftDeleteQuery;
     use ModelQueryShared;
@@ -52,7 +52,7 @@ class ModelQuery extends Query
             return null;
         }
 
-        $model = $this->hydrate($result);
+        $model = $this->toModel($result);
 
         if (!empty($this->withRelations)) {
             $this->eagerLoadRelations([$model], $this->withRelations);
@@ -72,7 +72,7 @@ class ModelQuery extends Query
 
         $models = [];
         foreach ($rows as $row) {
-            $models[] = $this->hydrate($row);
+            $models[] = $this->toModel($row);
         }
 
         if (!empty($this->withRelations) && !empty($models)) {
@@ -88,7 +88,7 @@ class ModelQuery extends Query
     public function cursor(): \Generator
     {
         foreach (parent::cursor() as $row) {
-            yield $this->hydrate($row);
+            yield $this->toModel($row);
         }
     }
 
