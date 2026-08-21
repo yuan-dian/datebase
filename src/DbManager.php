@@ -45,6 +45,22 @@ class DbManager
     }
 
     /**
+     * 重置连接管理器（Swoole/RoadRunner 等常驻进程 Worker 启动时调用）
+     *
+     * 清理所有连接实例、事件监听器和日志，保留配置。
+     */
+    public function reset(): void
+    {
+        foreach ($this->connections as $connection) {
+            $connection->close();
+        }
+
+        $this->connections = [];
+        $this->listen = [];
+        $this->log = [];
+    }
+
+    /**
      * 加载数据库配置
      */
     public function getConfig(?string $name = null, ?string $default = null): mixed
