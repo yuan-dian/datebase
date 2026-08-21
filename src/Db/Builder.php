@@ -273,33 +273,33 @@ class Builder extends BaseBuilder
         return $this->parseWhereItem($c->field, $c->operator, $c->value, $bind);
     }
 
-    protected function parseWhereItem(string $field, string $exp, mixed $value, array &$bind): string
+    protected function parseWhereItem(string $field, string $operator, mixed $value, array &$bind): string
     {
-        $exp = strtoupper($exp);
+        $operator = strtoupper($operator);
         $key = $this->parseKey($field);
 
         $p = $this->parser;
 
         return match (true) {
-            in_array($exp, $p['parseLike'], true)        => $this->parseLike($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseBetween'], true)     => $this->parseBetween($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseIn'], true)          => $this->parseIn($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseExp'], true)         => $this->parseExp($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseNull'], true)        => $this->parseNull($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseBetweenTime'], true) => $this->parseBetweenTime($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseTime'], true)        => $this->parseTime($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseExists'], true)      => $this->parseExists($key, $exp, $value, $field, $bind),
-            in_array($exp, $p['parseColumn'], true)      => $this->parseColumn($key, $exp, $value, $field, $bind),
-            default                                      => $this->parseCompare($key, $this->exp[$exp] ?? $exp, $value, $field, $bind),
+            in_array($operator, $p['parseLike'], true)        => $this->parseLike($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseBetween'], true)     => $this->parseBetween($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseIn'], true)          => $this->parseIn($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseExp'], true)         => $this->parseExp($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseNull'], true)        => $this->parseNull($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseBetweenTime'], true) => $this->parseBetweenTime($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseTime'], true)        => $this->parseTime($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseExists'], true)      => $this->parseExists($key, $operator, $value, $field, $bind),
+            in_array($operator, $p['parseColumn'], true)      => $this->parseColumn($key, $operator, $value, $field, $bind),
+            default                                      => $this->parseCompare($key, $this->operatorMap[$operator] ?? $operator, $value, $field, $bind),
         };
     }
 
-    protected function parseCompare(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseCompare(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if ($value instanceof Raw) {
             // Raw 自带 bind（如 whereRaw 生成的 Raw 值），合并避免参数错位
             $bind = array_merge($bind, $value->getBind());
-            return $key . ' ' . $exp . ' ' . $value->getValue();
+            return $key . ' ' . $operator . ' ' . $value->getValue();
         }
 
         if ($value instanceof Closure) {
@@ -308,30 +308,30 @@ class Builder extends BaseBuilder
             $subState = $subQuery->getState();
             $subSql = $this->compileSelect($subState);
             $bind = array_merge($bind, $subSql->bind);
-            return $key . ' ' . $exp . ' ( ' . $subSql->statement . ' )';
+            return $key . ' ' . $operator . ' ( ' . $subSql->statement . ' )';
         }
 
-        if ($exp === '=' && is_null($value)) {
+        if ($operator === '=' && is_null($value)) {
             return $key . ' IS NULL';
         }
 
         $bind[] = $value;
-        return $key . ' ' . $exp . ' ?';
+        return $key . ' ' . $operator . ' ?';
     }
 
-    protected function parseLike(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseLike(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         $bind[] = $value;
-        return $key . ' ' . $exp . ' ?';
+        return $key . ' ' . $operator . ' ?';
     }
 
-    protected function parseBetween(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseBetween(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if (is_string($value)) {
             $value = explode(',', $value);
         }
 
-        if ($exp === 'NOT BETWEEN') {
+        if ($operator === 'NOT BETWEEN') {
             $bind[] = $value[0];
             $bind[] = $value[1];
             return $key . ' NOT BETWEEN ? AND ?';
@@ -342,10 +342,10 @@ class Builder extends BaseBuilder
         return $key . ' BETWEEN ? AND ?';
     }
 
-    protected function parseIn(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseIn(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if (empty($value)) {
-            return $exp === 'IN' ? '0' : '1';
+            return $operator === 'IN' ? '0' : '1';
         }
 
         $placeholders = [];
@@ -358,10 +358,10 @@ class Builder extends BaseBuilder
             }
         }
 
-        return $key . ' ' . $exp . ' (' . implode(', ', $placeholders) . ')';
+        return $key . ' ' . $operator . ' (' . implode(', ', $placeholders) . ')';
     }
 
-    protected function parseExp(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseExp(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if ($value instanceof Raw) {
             return '( ' . $key . ' ' . $value->getValue() . ' )';
@@ -369,12 +369,12 @@ class Builder extends BaseBuilder
         return '( ' . $key . ' ' . $value . ' )';
     }
 
-    protected function parseNull(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseNull(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
-        return $exp === 'NULL' ? $key . ' IS NULL' : $key . ' IS NOT NULL';
+        return $operator === 'NULL' ? $key . ' IS NULL' : $key . ' IS NOT NULL';
     }
 
-    protected function parseBetweenTime(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseBetweenTime(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if (is_string($value)) {
             $value = explode(',', $value);
@@ -383,20 +383,20 @@ class Builder extends BaseBuilder
         $bind[] = $value[0];
         $bind[] = $value[1];
 
-        return $key . ($exp === 'BETWEEN TIME' ? ' BETWEEN' : ' NOT BETWEEN') . ' ? AND ?';
+        return $key . ($operator === 'BETWEEN TIME' ? ' BETWEEN' : ' NOT BETWEEN') . ' ? AND ?';
     }
 
-    protected function parseTime(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseTime(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         $bind[] = $value;
-        return $key . ' ' . substr($exp, 0, 2) . ' ?';
+        return $key . ' ' . substr($operator, 0, 2) . ' ?';
     }
 
-    protected function parseExists(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseExists(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if ($value instanceof Raw) {
             $bind = array_merge($bind, $value->getBind());
-            return $exp . ' ( ' . $value->getValue() . ' )';
+            return $operator . ' ( ' . $value->getValue() . ' )';
         }
 
         if ($value instanceof Closure) {
@@ -405,13 +405,13 @@ class Builder extends BaseBuilder
             $subState = $subQuery->getState();
             $subSql = $this->compileSelect($subState);
             $bind = array_merge($bind, $subSql->bind);
-            return $exp . ' ( ' . $subSql->statement . ' )';
+            return $operator . ' ( ' . $subSql->statement . ' )';
         }
 
-        return $exp . ' ( ' . $value . ' )';
+        return $operator . ' ( ' . $value . ' )';
     }
 
-    protected function parseColumn(string $key, string $exp, mixed $value, string $field, array &$bind): string
+    protected function parseColumn(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if (is_array($value) && count($value) === 2) {
             [$op, $compareField] = $value;

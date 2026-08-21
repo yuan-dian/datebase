@@ -363,7 +363,7 @@ class Mongo implements BuilderInterface
         return $value;
     }
 
-    public function getLastInsID()
+    public function getLastInsertId()
     {
         return $this->insertId;
     }
@@ -626,7 +626,7 @@ class Mongo implements BuilderInterface
         return $command;
     }
 
-    public function listcollections(): Command
+    public function listCollections(): Command
     {
         $cmd = ['listCollections' => 1];
         $command = new Command($cmd);

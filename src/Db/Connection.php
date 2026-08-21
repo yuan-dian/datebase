@@ -135,5 +135,5 @@ abstract class Connection implements ConnectionInterface, QueryContext
 
     abstract public function getBuilderClass(): string;
 
-    abstract public function getLastInsID(BaseQuery $query, ?string $sequence = null);
+    abstract public function getLastInsertId(BaseQuery $query, ?string $sequence = null);
 }

@@ -25,7 +25,7 @@ class Mongo extends Connection
     protected array|string $typeMap = 'array';
     protected ?Manager $mongo = null;
     protected ?Cursor $cursor = null;
-    protected ?string $session_uuid = null;
+    protected ?string $sessionUuid = null;
     protected array $sessions = [];
 
     /** @var array<int, Manager> */
@@ -119,13 +119,14 @@ class Mongo extends Connection
         return $this->mongo ?: null;
     }
 
-    public function db(?string $db = null)
+    public function getDbName(): string
     {
-        if (is_null($db)) {
-            return $this->dbName;
-        } else {
-            $this->dbName = $db;
-        }
+        return $this->dbName;
+    }
+
+    public function setDbName(string $db): void
+    {
+        $this->dbName = $db;
     }
 
     public function cursor($query)
@@ -452,7 +453,7 @@ class Mongo extends Connection
         return rtrim($url, ',') . '/';
     }
 
-    public function insert($query, bool $getLastInsID = false)
+    public function insert($query, bool $getLastInsertId = false)
     {
         $options = $query->parseOptions();
 
@@ -469,16 +470,16 @@ class Mongo extends Connection
 
         if ($result) {
             $data = $options['data'];
-            $lastInsId = $this->getLastInsID($query);
+            $lastInsId = $this->getLastInsertId($query);
 
             if ($lastInsId) {
-                $pk = $query->getPk();
+                $pk = $query->getPrimaryKey();
                 $data[$pk] = $lastInsId;
             }
 
             $query->setOption('data', $data);
 
-            if ($getLastInsID) {
+            if ($getLastInsertId) {
                 return $lastInsId;
             }
         }
@@ -486,11 +487,11 @@ class Mongo extends Connection
         return $result;
     }
 
-    public function getLastInsID(\yuandian\Database\Db\BaseQuery $query, ?string $sequence = null)
+    public function getLastInsertId(\yuandian\Database\Db\BaseQuery $query, ?string $sequence = null)
     {
         /** @var MongoBuilder $builder Mongo 连接固定使用 MongoBuilder */
         $builder = $this->builder;
-        $id = $builder->getLastInsID();
+        $id = $builder->getLastInsertId();
 
         if (is_array($id)) {
             foreach ($id as $key => $item) {
@@ -632,7 +633,7 @@ class Mongo extends Connection
         return $result;
     }
 
-    public function cmd($query, $command, $extra = null, string $db = ''): array
+    public function runCommand($query, $command, $extra = null, string $db = ''): array
     {
         if (is_array($command) || is_object($command)) {
             $this->mongoLog('cmd', 'cmd', $command);
@@ -670,10 +671,10 @@ class Mongo extends Connection
     public function startTrans(): void
     {
         $this->initConnect(true);
-        $this->session_uuid = uniqid();
-        $this->sessions[$this->session_uuid] = $this->getMongo()->startSession();
+        $this->sessionUuid = uniqid();
+        $this->sessions[$this->sessionUuid] = $this->getMongo()->startSession();
 
-        $this->sessions[$this->session_uuid]->startTransaction([]);
+        $this->sessions[$this->sessionUuid]->startTransaction([]);
     }
 
     public function commit(): void
@@ -696,20 +697,20 @@ class Mongo extends Connection
     {
         if ($session = $this->getSession()) {
             $session->endSession();
-            unset($this->sessions[$this->session_uuid]);
+            unset($this->sessions[$this->sessionUuid]);
             if (empty($this->sessions)) {
-                $this->session_uuid = null;
+                $this->sessionUuid = null;
             } else {
                 end($this->sessions);
-                $this->session_uuid = key($this->sessions);
+                $this->sessionUuid = key($this->sessions);
             }
         }
     }
 
     public function getSession()
     {
-        return ($this->session_uuid && isset($this->sessions[$this->session_uuid]))
-            ? $this->sessions[$this->session_uuid]
+        return ($this->sessionUuid && isset($this->sessions[$this->sessionUuid]))
+            ? $this->sessions[$this->sessionUuid]
             : null;
     }
 

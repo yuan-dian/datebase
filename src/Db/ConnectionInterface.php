@@ -30,5 +30,5 @@ interface ConnectionInterface
 
     public function getLastSql(): string;
 
-    public function getLastInsID(BaseQuery $query, ?string $sequence = null);
+    public function getLastInsertId(BaseQuery $query, ?string $sequence = null);
 }

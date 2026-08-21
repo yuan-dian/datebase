@@ -11,8 +11,8 @@ class HasMany
 {
     /**
      * @param string $model
-     * @param string|null $foreignColumn
-     * @param string|null $localColumn
+     * @param string|null $foreignKey
+     * @param string|null $localKey
      */
     public function __construct(
         public readonly string $model,

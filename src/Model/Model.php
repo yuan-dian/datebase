@@ -56,7 +56,7 @@ abstract class Model
     // ===================== 静态缓存 =====================
 
     /** @var array<class-string, ModelMeta> 类名→元数据值对象 */
-    protected static array $_metaCache = [];
+    protected static array $metaCache = [];
 
     // ===================== 实例状态 =====================
 
@@ -375,10 +375,10 @@ abstract class Model
     public static function getMeta(): ModelMeta
     {
         $class = static::class;
-        if (!isset(self::$_metaCache[$class])) {
-            self::$_metaCache[$class] = static::resolveMeta($class);
+        if (!isset(self::$metaCache[$class])) {
+            self::$metaCache[$class] = static::resolveMeta($class);
         }
-        return self::$_metaCache[$class];
+        return self::$metaCache[$class];
     }
 
     protected static function resolveMeta(string $class): ModelMeta
@@ -536,8 +536,8 @@ abstract class Model
     }
 
     /**
-     * 获取属性→列名 映射表
-     * @return array<string, string> [propertyName => columnName]
+     * 获取声明了 JsonColumn 属性的列名列表
+     * @return list<string>
      */
     public static function getJsonColumns(): array
     {

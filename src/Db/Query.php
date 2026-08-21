@@ -162,7 +162,7 @@ class Query extends BaseQuery
         $compiled = $this->builder->compileInsert($this->state->table, $data, $this->state->comment ?: null);
         $this->connection->execute($compiled->statement, $compiled->bind);
 
-        return (int)$this->connection->getLastInsID($this);
+        return (int)$this->connection->getLastInsertId($this);
     }
 
     public function insertAll(array $dataList): int

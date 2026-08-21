@@ -16,7 +16,7 @@ use yuandian\Database\Exceptions\DbException;
  * 核心能力：
  *   - 连接池（$links[]）
  *   - 读写分离（$linkRead / $linkWrite）
- *   - 断线重连（isBreak + reConnectTimes）
+ *   - 断线重连（isConnectionBroken + reConnectTimes）
  *   - 参数绑定（bindValue / bindParam）
  *   - Schema 缓存（getSchemaInfo + $info[]）
  *   - SQL 监控（trigger + queryStartTime）
@@ -33,7 +33,7 @@ abstract class PDOConnection extends Connection
     protected array $links = [];
 
     /** @var PDO|null 当前连接 */
-    protected ?PDO $linkID = null;
+    protected ?PDO $linkId = null;
 
     /** @var PDO|null 读连接 */
     protected ?PDO $linkRead = null;
@@ -42,12 +42,12 @@ abstract class PDOConnection extends Connection
     protected ?PDO $linkWrite = null;
 
     /** @var PDOStatement|null 当前语句 */
-    protected ?PDOStatement $PDOStatement = null;
+    protected ?PDOStatement $pdoStatement = null;
 
     protected string $queryStr = '';
     protected int $numRows = 0;
     protected int $transTimes = 0;
-    protected int $reConnectTimes = 0;
+    protected int $reconnectTimes = 0;
     protected float $queryStartTime = 0;
     protected array $bind = [];
     protected array $info = [];
@@ -228,12 +228,12 @@ abstract class PDOConnection extends Connection
 
     public function close()
     {
-        $this->linkID = null;
+        $this->linkId = null;
         $this->linkWrite = null;
         $this->linkRead = null;
         $this->links = [];
         $this->transTimes = 0;
-        $this->PDOStatement = null;
+        $this->pdoStatement = null;
 
         return $this;
     }
@@ -242,20 +242,20 @@ abstract class PDOConnection extends Connection
 
     public function query(string $sql, array $bind = [], bool $master = false): array
     {
-        $this->getPDOStatement($sql, $bind, $master);
+        $this->getPdoStatement($sql, $bind, $master);
         return $this->getResult();
     }
 
     public function execute(string $sql, array $bind = []): int
     {
-        $this->getPDOStatement($sql, $bind, true);
-        return $this->PDOStatement->rowCount();
+        $this->getPdoStatement($sql, $bind, true);
+        return $this->pdoStatement->rowCount();
     }
 
     /**
      * 获取 PDOStatement
      */
-    public function getPDOStatement(string $sql, array $bind = [], bool $master = false): PDOStatement
+    public function getPdoStatement(string $sql, array $bind = [], bool $master = false): PDOStatement
     {
         try {
             $this->initConnect($master);
@@ -263,26 +263,26 @@ abstract class PDOConnection extends Connection
             $this->bind = $bind;
             $this->queryStartTime = microtime(true);
 
-            $this->PDOStatement = $this->linkID->prepare($sql);
+            $this->pdoStatement = $this->linkId->prepare($sql);
             $this->bindValue($bind);
-            $this->PDOStatement->execute();
+            $this->pdoStatement->execute();
 
             // SQL 监控：存在监听器时才构建最终 SQL（无监听器短路，避免 getRealSql 开销）
             if (!empty($this->config['trigger_sql']) && $this->hasSqlListener()) {
                 $this->triggerSql('', $master);
             }
 
-            $this->reConnectTimes = 0;
-            return $this->PDOStatement;
+            $this->reconnectTimes = 0;
+            return $this->pdoStatement;
         } catch (\Throwable $e) {
             if ($this->transTimes > 0) {
-                if ($this->isBreak($e)) {
+                if ($this->isConnectionBroken($e)) {
                     $this->transTimes = 0;
                 }
             } else {
-                if ($this->reConnectTimes < 4 && $this->isBreak($e)) {
-                    $this->reConnectTimes++;
-                    return $this->close()->getPDOStatement($sql, $bind, $master);
+                if ($this->reconnectTimes < 4 && $this->isConnectionBroken($e)) {
+                    $this->reconnectTimes++;
+                    return $this->close()->getPdoStatement($sql, $bind, $master);
                 }
             }
             throw $e;
@@ -294,7 +294,7 @@ abstract class PDOConnection extends Connection
      */
     protected function getResult(): array
     {
-        $result = $this->PDOStatement->fetchAll($this->fetchType);
+        $result = $this->pdoStatement->fetchAll($this->fetchType);
         $this->numRows = count($result);
         return $result;
     }
@@ -312,15 +312,15 @@ abstract class PDOConnection extends Connection
                 if (!$this->linkWrite) {
                     $this->linkWrite = $this->multiConnect(true);
                 }
-                $this->linkID = $this->linkWrite;
+                $this->linkId = $this->linkWrite;
             } else {
                 if (!$this->linkRead) {
                     $this->linkRead = $this->multiConnect(false);
                 }
-                $this->linkID = $this->linkRead;
+                $this->linkId = $this->linkRead;
             }
-        } elseif (!$this->linkID) {
-            $this->linkID = $this->connect();
+        } elseif (!$this->linkId) {
+            $this->linkId = $this->connect();
         }
     }
 
@@ -378,9 +378,9 @@ abstract class PDOConnection extends Connection
                     $val[0] = is_string($val[0]) ? (float)$val[0] : $val[0];
                     $val[1] = self::PARAM_STR;
                 }
-                $this->PDOStatement->bindValue($param, $val[0], $val[1]);
+                $this->pdoStatement->bindValue($param, $val[0], $val[1]);
             } else {
-                $this->PDOStatement->bindValue($param, $val);
+                $this->pdoStatement->bindValue($param, $val);
             }
         }
     }
@@ -392,12 +392,12 @@ abstract class PDOConnection extends Connection
         $this->initConnect(true);
 
         if (0 == $this->transTimes) {
-            $this->linkID->beginTransaction();
-        } elseif ($this->transTimes > 0 && $this->supportSavepoint() && $this->linkID->inTransaction()) {
-            $this->linkID->exec($this->parseSavepoint('trans' . ($this->transTimes + 1)));
+            $this->linkId->beginTransaction();
+        } elseif ($this->transTimes > 0 && $this->supportSavepoint() && $this->linkId->inTransaction()) {
+            $this->linkId->exec($this->parseSavepoint('trans' . ($this->transTimes + 1)));
         }
         $this->transTimes++;
-        $this->reConnectTimes = 0;
+        $this->reconnectTimes = 0;
     }
 
     public function commit(): void
@@ -405,8 +405,8 @@ abstract class PDOConnection extends Connection
         $this->initConnect(true);
         $this->transTimes = max(0, $this->transTimes - 1);
 
-        if (0 == $this->transTimes && $this->linkID->inTransaction()) {
-            $this->linkID->commit();
+        if (0 == $this->transTimes && $this->linkId->inTransaction()) {
+            $this->linkId->commit();
         }
     }
 
@@ -415,11 +415,11 @@ abstract class PDOConnection extends Connection
         $this->initConnect(true);
         $this->transTimes = max(0, $this->transTimes - 1);
 
-        if ($this->linkID->inTransaction()) {
+        if ($this->linkId->inTransaction()) {
             if (0 == $this->transTimes) {
-                $this->linkID->rollBack();
+                $this->linkId->rollBack();
             } elseif ($this->transTimes > 0 && $this->supportSavepoint()) {
-                $this->linkID->exec($this->parseSavepointRollBack('trans' . ($this->transTimes + 1)));
+                $this->linkId->exec($this->parseSavepointRollback('trans' . ($this->transTimes + 1)));
             }
         }
     }
@@ -448,14 +448,14 @@ abstract class PDOConnection extends Connection
         return 'SAVEPOINT ' . $name;
     }
 
-    protected function parseSavepointRollBack(string $name): string
+    protected function parseSavepointRollback(string $name): string
     {
         return 'ROLLBACK TO SAVEPOINT ' . $name;
     }
 
     // ======================== 断线检测 ========================
 
-    protected function isBreak(\Throwable $e): bool
+    protected function isConnectionBroken(\Throwable $e): bool
     {
         if (!($this->config['break_reconnect'] ?? false)) {
             return false;
@@ -563,12 +563,12 @@ abstract class PDOConnection extends Connection
         return $this->bindType[$type] ?? self::PARAM_STR;
     }
 
-    public function getPk(string $tableName)
+    public function getPrimaryKey(string $tableName)
     {
         return $this->getTableInfo($tableName, 'pk');
     }
 
-    public function getAutoInc(string $tableName)
+    public function getAutoIncrement(string $tableName)
     {
         return $this->getTableInfo($tableName, 'autoinc');
     }
@@ -577,7 +577,7 @@ abstract class PDOConnection extends Connection
 
     public function getPdo()
     {
-        return $this->linkID ?: false;
+        return $this->linkId ?: false;
     }
 
     public function getLastSql(): string
@@ -585,9 +585,9 @@ abstract class PDOConnection extends Connection
         return $this->getRealSql($this->queryStr, $this->bind);
     }
 
-    public function getLastInsID(BaseQuery $query, ?string $sequence = null)
+    public function getLastInsertId(BaseQuery $query, ?string $sequence = null)
     {
-        return $this->linkID ? $this->linkID->lastInsertId() : '';
+        return $this->linkId ? $this->linkId->lastInsertId() : '';
     }
 
     public function getRealSql(string $sql, array $bind = []): string
@@ -627,8 +627,8 @@ abstract class PDOConnection extends Connection
 
     public function getError(): string
     {
-        if ($this->PDOStatement) {
-            $error = $this->PDOStatement->errorInfo();
+        if ($this->pdoStatement) {
+            $error = $this->pdoStatement->errorInfo();
             return ($error[1] ?? '') . ':' . ($error[2] ?? '');
         }
         return '';

@@ -11,7 +11,7 @@ abstract class BaseBuilder implements BuilderInterface
 {
     protected QueryContext $context;
 
-    protected array $exp = [
+    protected array $operatorMap = [
         'NOTLIKE'         => 'NOT LIKE',
         'NOTIN'           => 'NOT IN',
         'NOTBETWEEN'      => 'NOT BETWEEN',

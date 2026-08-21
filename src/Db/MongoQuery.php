@@ -46,23 +46,23 @@ class MongoQuery extends BaseQuery
         return $this->connection->command($command, $dbName, $readPreference, $typeMap);
     }
 
-    public function cmd($command, $extra = null, string $db = ''): array
+    public function runCommand($command, $extra = null, string $db = ''): array
     {
         $this->parseOptions();
 
-        return $this->connection->cmd($this, $command, $extra, $db);
+        return $this->connection->runCommand($this, $command, $extra, $db);
     }
 
     public function getDistinct(string $field): array
     {
-        $result = $this->cmd('distinct', $field);
+        $result = $this->runCommand('distinct', $field);
 
         return $result[0]['values'] ?? [];
     }
 
     public function listCollections(string $db = ''): array
     {
-        $cursor = $this->cmd('listCollections', null, $db);
+        $cursor = $this->runCommand('listCollections', null, $db);
         $result = [];
         foreach ($cursor as $collection) {
             $result[] = $collection['name'];
@@ -73,14 +73,14 @@ class MongoQuery extends BaseQuery
 
     public function count(string $field = '*'): int
     {
-        $result = $this->cmd('count');
+        $result = $this->runCommand('count');
 
         return $result[0]['n'] ?? 0;
     }
 
     public function aggregate(string $aggregate, $field, bool $force = false, bool $one = false): string|int|float|null
     {
-        $result = $this->cmd('aggregate', [strtolower($aggregate), $field]);
+        $result = $this->runCommand('aggregate', [strtolower($aggregate), $field]);
         $value = $result[0]['aggregate'] ?? 0;
 
         if ($force) {
@@ -96,7 +96,7 @@ class MongoQuery extends BaseQuery
 
     public function multiAggregate(array $aggregate, array $groupBy): array
     {
-        $result = $this->cmd('multiAggregate', [$aggregate, $groupBy]);
+        $result = $this->runCommand('multiAggregate', [$aggregate, $groupBy]);
 
         foreach ($result as $key => $row) {
             if (isset($row['_id']) && !empty($row['_id'])) {
@@ -324,7 +324,7 @@ class MongoQuery extends BaseQuery
         return $this;
     }
 
-    public function getPk(): string
+    public function getPrimaryKey(): string
     {
         $pk = $this->connection->getConfig('pk');
         // pk_convert_id 时模型侧主键为 id（原 connect() 曾连接级改写 config['pk']，
@@ -446,7 +446,7 @@ class MongoQuery extends BaseQuery
         return $this->getFieldsType();
     }
 
-    public function getAutoInc(): string
+    public function getAutoIncrement(): string
     {
         return '';
     }
