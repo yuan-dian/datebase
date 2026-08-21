@@ -31,22 +31,7 @@ class HasOneThroughRelation extends Relation
 
         $this->through = $through;
         $this->throughKey = $throughKey ?: $through::getTableName() . '_id';
-        $this->throughPk = $throughPk ?? 'id';
-    }
-
-    public function getThrough(): string
-    {
-        return $this->through;
-    }
-
-    public function getThroughKey(): string
-    {
-        return $this->throughKey;
-    }
-
-    public function getThroughPk(): string
-    {
-        return $this->throughPk;
+        $this->throughPk = $throughPk ?: 'id';
     }
 
     public function getResults(): ?Model
@@ -79,6 +64,24 @@ class HasOneThroughRelation extends Relation
         return $this->newQuery()
             ->where($this->related::getPkColumn(), '=', $throughKeyVal)
             ->find();
+    }
+
+    protected function collectLocalValues(array $models): array
+    {
+        $localKeyProp = StrUtil::camel($this->localKey);
+        $values = [];
+        foreach ($models as $model) {
+            $value = $model->{$localKeyProp} ?? null;
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+        return array_values(array_unique($values));
+    }
+
+    protected function extractResult(mixed $group, mixed $key): mixed
+    {
+        return $group ?? null;
     }
 
     public function matchMany(array $localValues): array

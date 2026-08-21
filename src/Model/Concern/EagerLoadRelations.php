@@ -14,7 +14,7 @@ use yuandian\Database\Model\Relations\HasManyRelation;
 use yuandian\Database\Model\Relations\HasManyThroughRelation;
 use yuandian\Database\Model\Relations\HasOneRelation;
 use yuandian\Database\Model\Relations\HasOneThroughRelation;
-use yuandian\Tools\utils\StrUtil;
+
 
 /**
  * 关联预加载能力：以 WHERE IN 批量查询替代 N+1 循环查询。
@@ -65,9 +65,8 @@ trait EagerLoadRelations
                 $nestedMap[$parent][] = $nested;
             } else {
                 $flatNames[$name] = true;
-            }
-        }
-
+    }
+}
         // 第二遍：批量加载所有平铺关系，收集加载出的关联模型实例（供嵌套递归）
         $loadedInstances = [];
         foreach (array_keys($flatNames) as $name) {
@@ -79,13 +78,25 @@ trait EagerLoadRelations
             /** @var HasOne|HasMany|HasOneThrough|HasManyThrough $attr */
             $attr = $info['attribute'];
 
-            $loadedInstances[$name] = match ($info['type']) {
-                RelationType::HasOne => $this->eagerLoadHasOne($models, $name, $attr),
-                RelationType::HasMany => $this->eagerLoadHasMany($models, $name, $attr),
-                RelationType::HasOneThrough => $this->eagerLoadHasOneThrough($models, $name, $attr),
-                RelationType::HasManyThrough => $this->eagerLoadHasManyThrough($models, $name, $attr),
-                default => [],
+            $relation = match ($info['type']) {
+                RelationType::HasOne => new HasOneRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey),
+                RelationType::HasMany => new HasManyRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey),
+                RelationType::HasOneThrough => new HasOneThroughRelation(
+                    $models[0], $attr->model, $attr->through,
+                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+                ),
+                RelationType::HasManyThrough => new HasManyThroughRelation(
+                    $models[0], $attr->model, $attr->through,
+                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+                ),
+                default => null,
             };
+
+            if ($relation === null) {
+                continue;
+            }
+
+            $loadedInstances[$name] = $relation->eagerLoad($models, $name);
         }
 
         // 第三遍：对每层父关系的全部实例递归预加载嵌套关系
@@ -97,153 +108,5 @@ trait EagerLoadRelations
         }
     }
 
-    /**
-     * 批量加载 HasOne：收集 localKey 值 → matchMany 分组 → 每组取单例
-     *
-     * @param Model[] $models
-     * @return Model[] 加载出的关联模型实例（供嵌套递归）
-     */
-    protected function eagerLoadHasOne(array $models, string $name, HasOne $attr): array
-    {
-        $relation = new HasOneRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey);
 
-        $localKeyProp = StrUtil::camel($relation->getLocalKey());
-        $values = [];
-        foreach ($models as $model) {
-            $value = $model->{$localKeyProp} ?? null;
-            if ($value !== null) {
-                $values[] = $value;
-            }
-        }
-        $values = array_values(array_unique($values));
-
-        $map = $relation->matchMany($values);
-
-        $instances = [];
-        foreach ($models as $model) {
-            $keyVal = $model->{$localKeyProp} ?? null;
-            $result = $map[$keyVal] ?? null;
-            $model->setRelation($name, $result);
-            if ($result !== null) {
-                $instances[] = $result;
-            }
-        }
-
-        return $instances;
-    }
-
-    /**
-     * 批量加载 HasMany：收集 localKey 值 → matchMany 分组 → 整组赋值
-     *
-     * @param Model[] $models
-     * @return Model[] 加载出的关联模型实例（供嵌套递归）
-     */
-    protected function eagerLoadHasMany(array $models, string $name, HasMany $attr): array
-    {
-        $relation = new HasManyRelation($models[0], $attr->model, $attr->foreignKey, $attr->localKey);
-
-        $localKeyProp = StrUtil::camel($relation->getLocalKey());
-        $values = [];
-        foreach ($models as $model) {
-            $value = $model->{$localKeyProp} ?? null;
-            if ($value !== null) {
-                $values[] = $value;
-            }
-        }
-        $values = array_values(array_unique($values));
-
-        $map = $relation->matchMany($values);
-
-        foreach ($models as $model) {
-            $keyVal = $model->{$localKeyProp} ?? null;
-            $model->setRelation($name, $map[$keyVal] ?? []);
-        }
-
-        $instances = [];
-        foreach ($map as $items) {
-            foreach ($items as $item) {
-                $instances[] = $item;
-            }
-        }
-
-        return $instances;
-    }
-
-    /**
-     * 批量加载 HasOneThrough：收集 localKey 值 → matchMany 两段查询分组 → 每组取单例
-     *
-     * @param Model[] $models
-     * @return Model[] 加载出的关联模型实例（供嵌套递归）
-     */
-    protected function eagerLoadHasOneThrough(array $models, string $name, HasOneThrough $attr): array
-    {
-        $relation = new HasOneThroughRelation(
-            $models[0], $attr->model, $attr->through,
-            $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-        );
-
-        $localKeyProp = StrUtil::camel($relation->getLocalKey());
-        $values = [];
-        foreach ($models as $model) {
-            $value = $model->{$localKeyProp} ?? null;
-            if ($value !== null) {
-                $values[] = $value;
-            }
-        }
-        $values = array_values(array_unique($values));
-
-        $map = $relation->matchMany($values);
-
-        $instances = [];
-        foreach ($models as $model) {
-            $keyVal = $model->{$localKeyProp} ?? null;
-            $result = $map[$keyVal] ?? null;
-            $model->setRelation($name, $result);
-            if ($result !== null) {
-                $instances[] = $result;
-            }
-        }
-
-        return $instances;
-    }
-
-    /**
-     * 批量加载 HasManyThrough：收集 localKey 值 → matchMany 两段查询分组 → 整组赋值
-     *
-     * @param Model[] $models
-     * @return Model[] 加载出的关联模型实例（供嵌套递归）
-     */
-    protected function eagerLoadHasManyThrough(array $models, string $name, HasManyThrough $attr): array
-    {
-        $relation = new HasManyThroughRelation(
-            $models[0], $attr->model, $attr->through,
-            $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-        );
-
-        $localKeyProp = StrUtil::camel($relation->getLocalKey());
-        $values = [];
-        foreach ($models as $model) {
-            $value = $model->{$localKeyProp} ?? null;
-            if ($value !== null) {
-                $values[] = $value;
-            }
-        }
-        $values = array_values(array_unique($values));
-
-        $map = $relation->matchMany($values);
-
-        foreach ($models as $model) {
-            $keyVal = $model->{$localKeyProp} ?? null;
-            $model->setRelation($name, $map[$keyVal] ?? []);
-        }
-
-        $instances = [];
-        foreach ($map as $items) {
-            foreach ($items as $item) {
-                $instances[] = $item;
-            }
-        }
-
-        return $instances;
-    }
 }

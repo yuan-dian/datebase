@@ -8,6 +8,7 @@ use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Model\Model;
 use yuandian\Database\Model\ModelQuery;
 use yuandian\Database\Model\MongoModelQuery;
+use yuandian\Tools\utils\StrUtil;
 
 abstract class Relation
 {
@@ -26,26 +27,6 @@ abstract class Relation
         $this->localKey = $localKey;
     }
 
-    public function getRelated(): string
-    {
-        return $this->related;
-    }
-
-    public function getForeignKey(): string
-    {
-        return $this->foreignKey;
-    }
-
-    public function getLocalKey(): string
-    {
-        return $this->localKey;
-    }
-
-    public function getParent(): Model
-    {
-        return $this->parent;
-    }
-
     abstract public function getResults(): Model|array|null;
 
     /**
@@ -56,6 +37,50 @@ abstract class Relation
      * @return array<mixed, Model|array|null>
      */
     abstract public function matchMany(array $localValues): array;
+
+    /**
+     * 从模型数组中收集本地键值（用于批量 IN 查询）
+     * @param Model[] $models
+     * @return list<scalar>
+     */
+    abstract protected function collectLocalValues(array $models): array;
+
+    /**
+     * 从 matchMany 分组结果中提取单个模型的关联值
+     * HasOne/HasOneThrough: $group[$key] ?? null（取首条）
+     * HasMany/HasManyThrough: $group[$key] ?? []（取整组）
+     */
+    abstract protected function extractResult(mixed $group, mixed $key): mixed;
+
+    /**
+     * 批量预加载：收集 localKey → matchMany → 分发回模型
+     * @param Model[] $models
+     * @return Model[] 加载出的关联模型实例
+     */
+    public function eagerLoad(array $models, string $name): array
+    {
+        $localKeyProp = StrUtil::camel($this->localKey);
+        $values = $this->collectLocalValues($models);
+        if (empty($values)) {
+            foreach ($models as $model) {
+                $model->setRelation($name, $this->extractResult(null, null));
+            }
+            return [];
+        }
+        $map = $this->matchMany($values);
+        $instances = [];
+        foreach ($models as $model) {
+            $keyVal = $model->{$localKeyProp} ?? null;
+            $result = $this->extractResult($map[$keyVal] ?? null, $keyVal);
+            $model->setRelation($name, $result);
+            if (is_array($result)) {
+                $instances = array_merge($instances, $result);
+            } elseif ($result !== null) {
+                $instances[] = $result;
+            }
+        }
+        return $instances;
+    }
 
     /**
      * 创建关联查询的 Query 实例
