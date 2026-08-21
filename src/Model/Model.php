@@ -13,6 +13,8 @@ use yuandian\Database\Enums\IdType;
 use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Facade\DB;
+use yuandian\Database\Model\Relations\BelongsToRelation;
+use yuandian\Database\Model\Relations\BelongsToManyRelation;
 use yuandian\Database\Model\Relations\HasManyRelation;
 use yuandian\Database\Model\Relations\HasManyThroughRelation;
 use yuandian\Database\Model\Relations\HasOneRelation;
@@ -332,6 +334,13 @@ abstract class Model
                 RelationType::HasManyThrough => new HasManyThroughRelation(
                     $this, $attr->model, $attr->through,
                     $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+                ),
+                RelationType::BelongsTo => new BelongsToRelation(
+                    $this, $attr->model, $attr->foreignKey, $attr->ownerKey
+                ),
+                RelationType::BelongsToMany => new BelongsToManyRelation(
+                    $this, $attr->model, $attr->through,
+                    $attr->foreignKey, $attr->relatedKey, $attr->localKey, $attr->relatedPivotKey
                 ),
                 default => null,
             };

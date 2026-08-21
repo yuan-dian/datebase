@@ -10,6 +10,8 @@ use yuandian\Database\Attribute\HasMany;
 use yuandian\Database\Attribute\HasManyThrough;
 use yuandian\Database\Attribute\HasOne;
 use yuandian\Database\Attribute\HasOneThrough;
+use yuandian\Database\Attribute\BelongsTo;
+use yuandian\Database\Attribute\BelongsToMany;
 use yuandian\Database\Attribute\JsonColumn;
 use yuandian\Database\Attribute\SoftDelete;
 use yuandian\Database\Attribute\Table;
@@ -37,6 +39,8 @@ class ModelMetaResolver
         HasMany::class        => RelationType::HasMany,
         HasOneThrough::class  => RelationType::HasOneThrough,
         HasManyThrough::class => RelationType::HasManyThrough,
+        BelongsTo::class      => RelationType::BelongsTo,
+        BelongsToMany::class  => RelationType::BelongsToMany,
     ];
 
     /**

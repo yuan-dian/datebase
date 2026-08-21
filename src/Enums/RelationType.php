@@ -20,4 +20,10 @@ enum RelationType: string
 
     /** 远程一对多 */
     case HasManyThrough = 'HasManyThrough';
+
+    /** 反向一对一 */
+    case BelongsTo = 'BelongsTo';
+
+    /** 多对多 */
+    case BelongsToMany = 'BelongsToMany';
 }

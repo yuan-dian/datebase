@@ -8,8 +8,12 @@ use yuandian\Database\Attribute\HasMany;
 use yuandian\Database\Attribute\HasManyThrough;
 use yuandian\Database\Attribute\HasOne;
 use yuandian\Database\Attribute\HasOneThrough;
+use yuandian\Database\Attribute\BelongsTo;
+use yuandian\Database\Attribute\BelongsToMany;
 use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Model\Model;
+use yuandian\Database\Model\Relations\BelongsToRelation;
+use yuandian\Database\Model\Relations\BelongsToManyRelation;
 use yuandian\Database\Model\Relations\HasManyRelation;
 use yuandian\Database\Model\Relations\HasManyThroughRelation;
 use yuandian\Database\Model\Relations\HasOneRelation;
@@ -88,6 +92,13 @@ trait EagerLoadRelations
                 RelationType::HasManyThrough => new HasManyThroughRelation(
                     $models[0], $attr->model, $attr->through,
                     $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
+                ),
+                RelationType::BelongsTo => new BelongsToRelation(
+                    $models[0], $attr->model, $attr->foreignKey, $attr->ownerKey
+                ),
+                RelationType::BelongsToMany => new BelongsToManyRelation(
+                    $models[0], $attr->model, $attr->through,
+                    $attr->foreignKey, $attr->relatedKey, $attr->localKey, $attr->relatedPivotKey
                 ),
                 default => null,
             };
