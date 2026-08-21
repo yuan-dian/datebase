@@ -6,14 +6,7 @@ namespace yuandian\Database\Model;
 
 use yuandian\Database\Attribute\AutoWriteTime;
 use yuandian\Database\Attribute\Connection;
-use yuandian\Database\Attribute\HasMany;
-use yuandian\Database\Attribute\HasManyThrough;
-use yuandian\Database\Attribute\HasOne;
-use yuandian\Database\Attribute\HasOneThrough;
-use yuandian\Database\Attribute\JsonColumn;
 use yuandian\Database\Attribute\SoftDelete;
-use yuandian\Database\Attribute\Table;
-use yuandian\Database\Attribute\TableId;
 use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Db\Connector\Mongo;
 use yuandian\Database\Enums\IdType;
@@ -26,8 +19,6 @@ use yuandian\Database\Model\Relations\HasOneRelation;
 use yuandian\Database\Model\Relations\HasOneThroughRelation;
 use yuandian\Database\Model\Relations\Relation;
 use yuandian\Tools\bean\BeanUtil;
-use yuandian\Tools\reflection\ClassReflector;
-use yuandian\Tools\reflection\PropertyReflection;
 use yuandian\Tools\utils\SnowflakeUtil;
 use yuandian\Tools\utils\StrUtil;
 use yuandian\Tools\utils\UUIDUtil;
@@ -374,89 +365,9 @@ abstract class Model
     {
         $class = static::class;
         if (!isset(self::$metaCache[$class])) {
-            self::$metaCache[$class] = static::resolveMeta($class);
+            self::$metaCache[$class] = ModelMetaResolver::resolve($class);
         }
         return self::$metaCache[$class];
-    }
-
-    protected static function resolveMeta(string $class): ModelMeta
-    {
-        $reflection = new ClassReflector($class);
-
-        // Table name
-        $tableAttr = $reflection->getAttribute(Table::class);
-        $tableName = $tableAttr ? $tableAttr->name : StrUtil::snake($reflection->getShortName());
-
-        // Connection name
-        $connAttr = $reflection->getAttribute(Connection::class);
-        $connectionName = $connAttr ? $connAttr->name : null;
-        // SoftDelete
-        $softDelete = $reflection->getAttributeFromHierarchy(SoftDelete::class);
-        // AutoWriteTime
-        $autoWriteTime = $reflection->getAttributeFromHierarchy(AutoWriteTime::class);
-
-        $pkProperty = 'id';
-        $pkColumn = 'id';
-        $pkType = IdType::AUTO;
-
-
-        // Fields, primary key, id type, relations
-        $fields = [];       // [propertyName => columnName]
-        $relations = [];    // [propertyName => relationDef]
-        $jsonColumns = [];  // [propertyName => castTo|null]
-        $nullable = [];     // ['propertyName' => bool]
-
-        foreach ($reflection->getPublicProperties() as $prop) {
-            $propName = $prop->getName();
-
-            // Skip internal properties
-            if (str_starts_with($propName, '_')) {
-                continue;
-            }
-            // 判断属性是否可以为null
-            $type = $prop->getType();
-            if ($type === null || $type->allowsNull()) {
-                $nullable[$propName] = true;
-            }
-
-
-            // 关联属性不是数据库列：不进入 fields（columnMap），
-            // 避免 getUpdateData 把已加载的关联对象当列值写入数据库
-            $relation = self::parseRelations($prop);
-            if ($relation) {
-                $relations[$propName] = $relation;
-            } else {
-                $columnName = StrUtil::snake($propName);
-                $fields[$propName] = $columnName;
-            }
-
-            // Check for TableId attribute
-            $tableIdAttr = $prop->getAttribute(TableId::class);
-            if ($tableIdAttr) {
-                $pkProperty = $propName;
-                $pkColumn = StrUtil::snake($propName);
-                $pkType = $tableIdAttr->type;
-            }
-            // get the json column metadata
-            $jsonColumnAttr = $prop->getAttribute(JsonColumn::class);
-            if ($jsonColumnAttr) {
-                $jsonColumns[$propName] = $jsonColumnAttr->castTo;
-            }
-        }
-
-        return new ModelMeta(
-            $tableName,
-            $connectionName,
-            $softDelete,
-            $autoWriteTime,
-            $fields,
-            $pkProperty,
-            $pkColumn,
-            $pkType,
-            $relations,
-            $jsonColumns,
-            $nullable,
-        );
     }
 
     public static function getTableName(): string
@@ -523,32 +434,6 @@ abstract class Model
     /**
      * 解析模型上关联注解
      */
-    protected static function parseRelations(PropertyReflection $prop): array
-    {
-        $map = [
-            HasOne::class         => RelationType::HasOne,
-            HasMany::class        => RelationType::HasMany,
-            HasOneThrough::class  => RelationType::HasOneThrough,
-            HasManyThrough::class => RelationType::HasManyThrough,
-        ];
-
-        // 一次反射扫描全部属性注解，按类名匹配（is_a 保留 IS_INSTANCEOF 的继承语义）
-        foreach ($prop->getReflection()->getAttributes() as $attribute) {
-            $attrClass = $attribute->getName();
-            foreach ($map as $targetClass => $type) {
-                if (is_a($attrClass, $targetClass, true)) {
-                    return [
-                        'type'      => $type,
-                        'attribute' => $attribute->newInstance(),
-                    ];
-                }
-            }
-        }
-
-        return [];
-    }
-
-
     public function setExists(bool $exists): static
     {
         $this->exists = $exists;
