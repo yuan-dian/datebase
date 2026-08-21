@@ -49,9 +49,6 @@ abstract class BaseQuery
         }
     }
 
-    /**
-     * 获取类型化查询状态
-     */
     public function getState(): QueryState
     {
         return $this->state;
@@ -408,8 +405,7 @@ abstract class BaseQuery
     }
 
     /**
-     * 子查询附加状态拷贝钩子：chunk 分块时除 options 外需同步的状态（模型层预加载名等）。
-     * Db 层无附加状态，默认空实现；Model 层覆写补充。
+     * 子查询附加状态拷贝钩子：Db 层空实现，Model 层覆写补充。
      */
     protected function copyExtraState(BaseQuery $query): void
     {

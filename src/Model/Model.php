@@ -91,8 +91,6 @@ abstract class Model
     }
 
     /**
-     * 静态代理（向后兼容保留）：推荐改用 query() 入口
-     *
      * @param string $method
      * @param array<int, mixed> $args
      * @return mixed
@@ -461,64 +459,42 @@ abstract class Model
         );
     }
 
-    /**
-     * 获取表名
-     */
     public static function getTableName(): string
     {
         return self::getMeta()->table;
     }
 
-    /**
-     * 获取连接名
-     */
     public static function getConnectionName(): ?string
     {
         return self::getMeta()->connection;
     }
 
-    /**
-     * 获取软删除标识
-     */
     public static function getSoftDelete(): ?SoftDelete
     {
         return self::getMeta()->softDelete;
     }
 
-    /**
-     * 获取自动写入时间戳
-     */
     public static function getAutoWriteTime(): ?AutoWriteTime
     {
         return self::getMeta()->autoWriteTime;
     }
 
-    /**
-     * 获取主键属性名
-     */
     public static function getPkProperty(): string
     {
         return self::getMeta()->pkProperty;
     }
 
-    /**
-     * 获取主键数据库列名
-     */
     public static function getPkColumn(): string
     {
         return self::getMeta()->pkColumn;
     }
 
-    /**
-     * 获取主键类型
-     */
     public static function getPkType(): IdType
     {
         return self::getMeta()->pkType;
     }
 
     /**
-     * 获取属性→列名 映射表
      * @return array<string, string> [propertyName => columnName]
      */
     public static function getColumnMap(): array

@@ -17,10 +17,7 @@ trait ModelQueryShared
     /** @var class-string */
     protected string $modelClass;
 
-    /**
-     * 获取模型类名
-     * @return class-string
-     */
+    /** @return class-string */
     public function getModelClass(): string
     {
         return $this->modelClass;
@@ -60,12 +57,8 @@ trait ModelQueryShared
         return new static($this->connection, $this->modelClass);
     }
 
-    /**
-     * chunk 分块时同步查询状态与预加载名
-     */
     protected function copyExtraState(BaseQuery $query): void
     {
-        /** @var static $query */
         $query->state = $this->state->copy();
         if (!empty($this->withRelations)) {
             $query->withRelations = $this->withRelations;

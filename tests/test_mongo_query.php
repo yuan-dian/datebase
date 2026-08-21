@@ -8,7 +8,7 @@ use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connector\Mongo as MongoConnection;
 use yuandian\Database\Db\MongoQuery;
 
-echo "=== MongoQuery Refactoring Test ===\n\n";
+echo "=== MongoQuery API Verification ===\n\n";
 
 echo "1. Checking MongoQuery class...\n";
 if (class_exists(MongoQuery::class)) {

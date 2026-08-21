@@ -252,9 +252,6 @@ abstract class PDOConnection extends Connection
         return $this->pdoStatement->rowCount();
     }
 
-    /**
-     * 获取 PDOStatement
-     */
     public function getPdoStatement(string $sql, array $bind = [], bool $master = false): PDOStatement
     {
         try {
@@ -289,9 +286,6 @@ abstract class PDOConnection extends Connection
         }
     }
 
-    /**
-     * 获取结果集
-     */
     protected function getResult(): array
     {
         $result = $this->pdoStatement->fetchAll($this->fetchType);
@@ -363,9 +357,6 @@ abstract class PDOConnection extends Connection
 
     // ======================== 参数绑定 ========================
 
-    /**
-     * 绑定值
-     */
     protected function bindValue(array $bind = []): void
     {
         foreach ($bind as $key => $val) {

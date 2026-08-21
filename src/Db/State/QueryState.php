@@ -35,7 +35,7 @@ final class QueryState
     public string|array|false $forceIndex = '';
     /** @var array<string, mixed> update/inc 数据（Express/Raw/标量） */
     public array $data = [];
-    /** @var array<string, mixed> 驱动专属选项桶（Mongo: typeMap/awaitData/batchSize/exhaust/modifiers/noCursorTimeout/oplogReplay/partial/maxTimeMS/collation/tailable/writeConcern/slaveOk/fetch_cursor/master 等） */
+    /** 驱动专属选项桶（typeMap/batchSize/collation 等） */
     public array $extra = [];
 
     public function __construct()

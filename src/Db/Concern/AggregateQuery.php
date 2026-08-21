@@ -47,7 +47,7 @@ trait AggregateQuery
         $state->limit = null;
         $state->offset = null;
 
-        // 带 GROUP BY 时：子查询包裹，避免 COUNT GROUP BY 只取第一组（ThinkPHP #2670 同源问题）
+        // 带 GROUP BY 时：子查询包裹，避免 COUNT 只取第一组
         if (!empty($state->group)) {
             $state->field = ['*'];
             $subCompiled = $this->getBuilder()->compileSelect($state);

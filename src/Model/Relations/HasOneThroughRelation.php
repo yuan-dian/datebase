@@ -131,7 +131,7 @@ class HasOneThroughRelation extends Relation
             }
         }
 
-        // Step 6: HasOneThrough 每组取第一条（与原有 eagerLoadHasOneThrough 的 [0] 语义一致）
+        // Step 6: HasOneThrough 每组只取第一条
         foreach ($grouped as $fkValue => $items) {
             $grouped[$fkValue] = $items[0];
         }

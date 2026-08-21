@@ -164,7 +164,7 @@ check($saveOk === true, '加载关联后 save() 正常返回（不把关联对�
 check(is_array($p0->shareFiles), 'save() 后关联数据仍保留');
 
 // ---------- Db 层独立使用对照 ----------
-echo "\n== Db 层独立使用（重构对照） ==\n";
+echo "\n== Db 层独立使用 ==\n";
 
 $dbRow = DB::table('share_base')->where('share_id', '=', $shareId)->find();
 check(is_array($dbRow), 'Db 层 find 返回原生数组');

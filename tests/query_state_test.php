@@ -23,8 +23,7 @@ function check(bool $cond, string $label): void
 }
 
 $conn = new \yuandian\Database\Db\Connector\Sqlite(['type' => 'sqlite', 'database' => ':memory:']);
-// Task 5 阶段 Connection 尚未 implements QueryContext（Task 7 收口），
-// 用匿名类委托连接实现最小契约
+// Connection 尚未 implements QueryContext，用匿名类委托连接实现最小契约
 $context = new class($conn) implements \yuandian\Database\Db\QueryContext {
     public function __construct(private \yuandian\Database\Db\Connection $conn) {}
 

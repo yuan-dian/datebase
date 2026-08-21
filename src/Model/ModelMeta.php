@@ -12,7 +12,7 @@ use yuandian\Database\Enums\RelationType;
 /**
  * Class ModelMeta 模型元数据值对象
  *
- * 由 resolveMeta() 反射解析一次后不可变缓存，取代裸数组传递：
+ * 由 resolveMeta() 反射解析一次后不可变缓存：
  * - 类型化访问，避免 getMeta()['key'] 的全量数组拷贝与魔法字符串
  * - 只读语义，元数据在进程内恒定
  *

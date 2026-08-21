@@ -12,25 +12,6 @@ use yuandian\Database\Db\State\WhereCondition;
 trait WhereQuery
 {
     /**
-     * 允许的查询运算符白名单（SQL 侧）。
-     *
-     * 运算符会原样拼接进 SQL（Builder::parseWhereItem 默认分支），
-     * 非白名单值一律拒绝，防止注入面。Mongo 侧有独立 exp 映射，
-     * 由 MongoQuery 覆写 operatorWhitelist() 返回 null 跳过校验。
-     */
-    private const ALLOWED_OPERATORS = [
-        '=', '<>', '>', '>=', '<', '<=',
-        'LIKE', 'NOT LIKE',
-        'IN', 'NOT IN',
-        'BETWEEN', 'NOT BETWEEN',
-        'EXISTS', 'NOT EXISTS',
-        'NULL', 'NOT NULL',
-        'EXP', 'COLUMN', 'RAW',
-        'TIME', '< TIME', '> TIME', '<= TIME', '>= TIME',
-        'BETWEEN TIME', 'NOT BETWEEN TIME',
-    ];
-
-    /**
      * 字段名转换钩子：Db 层原样返回；模型层（ModelQuery）覆写为 camel→snake。
      *
      * 用于 where/whereIn/whereNull 等所有字段接受入口，保证模型层可用属性名查询。
@@ -45,7 +26,34 @@ trait WhereQuery
      */
     protected function operatorWhitelist(): ?array
     {
-        return self::ALLOWED_OPERATORS;
+        return [
+            '=',
+            '<>',
+            '>',
+            '>=',
+            '<',
+            '<=',
+            'LIKE',
+            'NOT LIKE',
+            'IN',
+            'NOT IN',
+            'BETWEEN',
+            'NOT BETWEEN',
+            'EXISTS',
+            'NOT EXISTS',
+            'NULL',
+            'NOT NULL',
+            'EXP',
+            'COLUMN',
+            'RAW',
+            'TIME',
+            '< TIME',
+            '> TIME',
+            '<= TIME',
+            '>= TIME',
+            'BETWEEN TIME',
+            'NOT BETWEEN TIME',
+        ];
     }
 
     /**
@@ -81,8 +89,11 @@ trait WhereQuery
      *
      * @param string|int|float|bool|null|array|Raw|Closure $value
      */
-    public function orWhere(string $field, string $operator, string|int|float|bool|null|array|Raw|Closure $value): static
-    {
+    public function orWhere(
+        string $field,
+        string $operator,
+        string|int|float|bool|null|array|Raw|Closure $value
+    ): static {
         $this->assertOperator($operator);
 
         return $this->parseWhereExp('OR', $field, $operator, $value);
@@ -118,11 +129,13 @@ trait WhereQuery
     {
         foreach ($conditions as $field => $value) {
             if (is_array($value) || is_object($value)) {
-                throw new InvalidArgumentException(sprintf(
-                    'whereMap 仅支持标量值或 null（字段 %s 的值为 %s），IN 条件请使用 whereIn()/whereNotIn()',
-                    (string)$field,
-                    is_object($value) ? $value::class : 'array'
-                ));
+                throw new InvalidArgumentException(
+                    sprintf(
+                        'whereMap 仅支持标量值或 null（字段 %s 的值为 %s），IN 条件请使用 whereIn()/whereNotIn()',
+                        (string)$field,
+                        is_object($value) ? $value::class : 'array'
+                    )
+                );
             }
             $this->parseEqual('AND', (string)$field, $value);
         }
@@ -215,11 +228,14 @@ trait WhereQuery
             $field2 = $operator;
             $operator = '=';
         }
-        $this->state->where->add($logic, new WhereCondition(
-            $this->convertFieldName($field1),
-            'COLUMN',
-            [$operator, $this->convertFieldName($field2)],
-        ));
+        $this->state->where->add(
+            $logic,
+            new WhereCondition(
+                $this->convertFieldName($field1),
+                'COLUMN',
+                [$operator, $this->convertFieldName($field2)],
+            )
+        );
         return $this;
     }
 
@@ -228,8 +244,12 @@ trait WhereQuery
      *
      * @param string|int|float|bool|null|array|Raw|Closure $value
      */
-    protected function parseWhereExp(string $logic, string $field, string $operator, string|int|float|bool|null|array|Raw|Closure $value): static
-    {
+    protected function parseWhereExp(
+        string $logic,
+        string $field,
+        string $operator,
+        string|int|float|bool|null|array|Raw|Closure $value
+    ): static {
         // IS NULL：null 值统一转 NULL 条件（无论运算符）
         if ($value === null) {
             $this->state->where->add($logic, new WhereCondition($this->convertFieldName($field), 'NULL', ''));
@@ -261,7 +281,7 @@ trait WhereQuery
     {
         $sub = $this->newSubQuery();
         $callback($sub);
-        // 构建期即求值：子查询的 where 组直接作为嵌套 WhereGroup 存入（TypePHP AOT 友好）
+        // 子查询 where 组直接嵌入（不做延迟求值）
         $this->state->where->add($logic, new WhereCondition('', 'GROUP', $sub->state->where));
         return $this;
     }

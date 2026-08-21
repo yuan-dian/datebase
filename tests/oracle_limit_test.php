@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-// N8 回归测试：Oracle parseLimit OFFSET/FETCH 顺序（Oracle 12c+ 要求 OFFSET 在前）
+// Oracle parseLimit OFFSET/FETCH 顺序回归测试（Oracle 12c+ 要求 OFFSET 在前）
 // 纯 SQL 生成验证——用 Sqlite 连接实例化 Oracle builder，无需真实 Oracle 服务
-//
-// 修复前：FETCH NEXT 10 ROWS ONLY OFFSET 5 ROWS（ORA-00933）
-// 修复后：OFFSET 5 ROWS FETCH NEXT 10 ROWS ONLY
+// Oracle 12c+ 要求 OFFSET 在 FETCH 前，否则 ORA-00933
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -25,8 +23,7 @@ function check(bool $cond, string $label): void
 }
 
 $conn = new Sqlite(['type' => 'sqlite', 'database' => ':memory:']);
-// Task 5 阶段 Connection 尚未 implements QueryContext（Task 7 收口），
-// 用匿名类委托连接实现最小契约
+// Connection 尚未 implements QueryContext，用匿名类委托连接实现最小契约
 $context = new class($conn) implements \yuandian\Database\Db\QueryContext {
     public function __construct(private \yuandian\Database\Db\Connection $conn) {}
 
@@ -85,7 +82,7 @@ check(
 );
 check(
     strpos($sql1, 'OFFSET 5 ROWS') < strpos($sql1, 'FETCH NEXT 10 ROWS ONLY'),
-    'OFFSET 位于 FETCH 之前（修复前相反，Oracle 报 ORA-00933）'
+    'OFFSET 位于 FETCH 之前（Oracle 要求顺序）'
 );
 check(
     str_contains($sql1, 'SELECT * FROM "USERS"') ,

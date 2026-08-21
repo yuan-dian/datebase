@@ -466,8 +466,7 @@ class Builder extends BaseBuilder
     {
         $sql = '';
         if ($limit !== null) {
-            // 防御：负数 limit 在 SQLite 语义为"无限制"（返回全部）、MySQL 为语法错误，
-            // 统一抛异常避免驱动间静默行为差异
+            // 负数 limit 各驱动语义不同，统一抛异常
             if ($limit < 0) {
                 throw new \InvalidArgumentException('limit 不能为负数，当前值：' . $limit);
             }
@@ -480,9 +479,7 @@ class Builder extends BaseBuilder
     }
 
     /**
-     * 生成 union 段（对齐 ThinkPHP 模板直接替换风格）
-     * 子查询自带 ORDER/LIMIT 时用派生表包裹：SQLite/MySQL/Oracle 通用，
-     * 否则 UNION 后的 ORDER/LIMIT 会被解释为整体排序分页
+     * 生成 UNION 段
      */
     protected function parseUnion(array $union, array &$bind): string
     {

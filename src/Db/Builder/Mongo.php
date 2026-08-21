@@ -612,7 +612,6 @@ class Mongo implements BuilderInterface
             'key'      => $field,
         ];
 
-        // 原 !empty($options['where']) 对对象恒真，等价于无条件设置 query
         $cmd['query'] = (object)$this->parseWhere($query, $state->where);
 
         if (isset($state->extra['maxTimeMS'])) {

@@ -52,16 +52,3 @@ $aa = ShareBase::where('share_id', '=', 2047600338951996096)->find();
 $aa->load('shareFiles');
 var_dump($aa);
 
-////$ShareBase = new ShareBase();
-//$aa->shareName = 'aavvv';
-//$aa->shareCode = 'aaaa';
-//$aa->save();
-
-//var_dump($aa);
-//var_dump(json_encode($aa));
-//var_dump($aa->shareFiles);
-//$aa = new ShareBase;
-//$aa->shareCode = "aaaaaaddbbbdddsadsad";
-//$aa->save();
-//$aa->shareName = "ddd";
-//var_dump($aa->save());
