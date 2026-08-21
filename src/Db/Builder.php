@@ -95,53 +95,6 @@ class Builder extends BaseBuilder
         return new Compiled($sql, $bind);
     }
 
-    public function selectInsert(BaseQuery $query, array $fields, string $table): array
-    {
-        $source = $this->compileSelect($query->getState());
-
-        $sql = strtr('INSERT INTO %TABLE% (%FIELD%) %DATA% %COMMENT%', [
-            '%TABLE%'   => $this->parseTable($table),
-            '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $fields)),
-            '%DATA%'    => $source->statement,
-            '%COMMENT%' => '',
-        ]);
-
-        return [trim($sql), $source->bind];
-    }
-
-    public function insertAllByKeys(string $table, array $keys, array $values): array
-    {
-        if (empty($values)) {
-            return ['', []];
-        }
-
-        $bind = [];
-        $rows = [];
-
-        foreach ($values as $row) {
-            $placeholders = [];
-            foreach ($keys as $key) {
-                $val = $row[$key] ?? null;
-                if ($val instanceof Raw) {
-                    $placeholders[] = $val->getValue();
-                } else {
-                    $placeholders[] = '?';
-                    $bind[] = $val;
-                }
-            }
-            $rows[] = '(' . implode(', ', $placeholders) . ')';
-        }
-
-        $sql = strtr($this->insertAllSql, [
-            '%TABLE%'   => $this->parseTable($table),
-            '%FIELD%'   => implode(', ', array_map([$this, 'parseKey'], $keys)),
-            '%DATA%'    => implode(', ', $rows),
-            '%COMMENT%' => '',
-        ]);
-
-        return [$sql, $bind];
-    }
-
     public function compileUpdate(string $table, array $data, QueryState $state): Compiled
     {
         $bind = [];
