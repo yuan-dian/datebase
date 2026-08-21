@@ -49,7 +49,11 @@ class BelongsToManyRelation extends Relation
             return [];
         }
 
-        $relatedIds = array_unique(array_column($pivotRows, $relatedKeyProp));
+        $relatedIds = [];
+        foreach ($pivotRows as $row) {
+            $relatedIds[] = $row->$relatedKeyProp;
+        }
+        $relatedIds = array_unique($relatedIds);
 
         return $this->newQuery()
             ->whereIn($relatedPivotKeyProp, $relatedIds)
@@ -77,8 +81,8 @@ class BelongsToManyRelation extends Relation
         $relatedIds = [];
         $pivotMap = [];
         foreach ($pivotRows as $row) {
-            $fk = $row[$foreignKeyProp];
-            $rk = $row[$relatedKeyProp];
+            $fk = $row->$foreignKeyProp;
+            $rk = $row->$relatedKeyProp;
             $relatedIds[] = $rk;
             $pivotMap[$fk][] = $rk;
         }

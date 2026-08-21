@@ -43,19 +43,19 @@ class HasOneThroughRelation extends Relation
             return null;
         }
 
-        // Step 1: 查中间表
+        // Step 1: 查中间表（用 throughKey 过滤：中间表的外键指向父表的列）
         $throughQuery = $this->newQueryFor($this->through);
         $throughModel = $throughQuery
-            ->where($this->foreignKey, '=', $localValue)
+            ->where($this->throughKey, '=', $localValue)
             ->find();
 
         if ($throughModel === null) {
             return null;
         }
 
-        // Step 2: 用中间表中指向目标表的列值（throughKey 列的值 = 目标表主键值）查最终关联
-        $throughKeyProp = StrUtil::camel($this->throughKey);
-        $throughKeyVal = $throughModel->$throughKeyProp ?? null;
+        // Step 2: 用中间表主键值（中间表主键 = 目标表外键列的值）查最终关联
+        $throughPkProp = StrUtil::camel($this->throughPk);
+        $throughKeyVal = $throughModel->$throughPkProp ?? null;
 
         if ($throughKeyVal === null) {
             return null;
@@ -92,16 +92,17 @@ class HasOneThroughRelation extends Relation
 
         $foreignKeyProp = StrUtil::camel($this->foreignKey);
         $throughKeyProp = StrUtil::camel($this->throughKey);
+        $throughPkProp = StrUtil::camel($this->throughPk);
 
-        // Step 1: 查中间表
+        // Step 1: 查中间表（用 throughKey 过滤：中间表的外键指向父表的列）
         $throughModels = $this->newQueryFor($this->through)
-            ->whereIn($this->foreignKey, array_values($localValues))
+            ->whereIn($this->throughKey, array_values($localValues))
             ->select();
 
-        // Step 2: 收集中间表中指向目标表的列值（throughKey 列的值 = 目标表主键值）
+        // Step 2: 收集中间表主键值（中间表主键 = 目标表外键列的值）
         $throughKeyVals = [];
         foreach ($throughModels as $throughModel) {
-            $throughKeyVals[] = $throughModel->$throughKeyProp;
+            $throughKeyVals[] = $throughModel->$throughPkProp;
         }
         $throughKeyVals = array_values(array_unique($throughKeyVals));
 
@@ -121,13 +122,13 @@ class HasOneThroughRelation extends Relation
             $byPk[$final->$relatedPkProp][] = $final;
         }
 
-        // Step 5: 中间表按 foreignKey 分组，把 throughKey 值 → 最终关联映射到每个父模型
+        // Step 5: 中间表按 throughKey 分组（中间表的外键指向父表的列），把最终关联映射到每个父模型
         $grouped = [];
         foreach ($throughModels as $throughModel) {
-            $fkValue = $throughModel->$foreignKeyProp;
-            $tkValue = $throughModel->$throughKeyProp;
-            foreach ($byPk[$tkValue] ?? [] as $final) {
-                $grouped[$fkValue][] = $final;
+            $userId = $throughModel->$throughKeyProp;
+            $postId = $throughModel->$throughPkProp;
+            foreach ($byPk[$postId] ?? [] as $final) {
+                $grouped[$userId][] = $final;
             }
         }
 
