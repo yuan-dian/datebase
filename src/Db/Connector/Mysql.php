@@ -27,7 +27,7 @@ class Mysql extends PDOConnection
                 WHERE TABLE_SCHEMA = :database AND TABLE_NAME = :table
                 ORDER BY ORDINAL_POSITION";
 
-        $stmt = $this->linkID->prepare($sql);
+        $stmt = $this->linkId->prepare($sql);
         $stmt->execute(['database' => $database, 'table' => $tableName]);
         $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -49,7 +49,7 @@ class Mysql extends PDOConnection
         $database = $dbName ?: $this->getConfig('database');
         $sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = :database";
 
-        $stmt = $this->linkID->prepare($sql);
+        $stmt = $this->linkId->prepare($sql);
         $stmt->execute(['database' => $database]);
 
         return $stmt->fetchAll(PDO::FETCH_COLUMN);

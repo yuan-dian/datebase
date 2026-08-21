@@ -11,6 +11,14 @@ use yuandian\Database\Db\State\WhereGroup;
 
 class Builder extends BaseBuilder
 {
+    /** 允许的 lock 字符串值（防止 SQL 注入） */
+    private const LOCK_WHITELIST = [
+        'FOR SHARE',
+        'FOR UPDATE',
+        'LOCK IN SHARE MODE',
+        'FOR UPDATE NOWAIT',
+        'FOR UPDATE SKIP LOCKED',
+    ];
 
     public function compileSelect(QueryState $state): Compiled
     {
@@ -415,6 +423,10 @@ class Builder extends BaseBuilder
     {
         if (is_array($value) && count($value) === 2) {
             [$op, $compareField] = $value;
+            $op = strtoupper($op);
+            if (!in_array($op, $this->parser['parseCompare'], true)) {
+                $op = '=';
+            }
             return '( ' . $key . ' ' . $op . ' ' . $this->parseKey($compareField) . ' )';
         }
 
@@ -529,7 +541,14 @@ class Builder extends BaseBuilder
             return ' FOR UPDATE';
         }
 
-        return ' ' . $lock;
+        $upper = strtoupper($lock);
+        foreach (self::LOCK_WHITELIST as $allowed) {
+            if ($upper === $allowed) {
+                return ' ' . $allowed;
+            }
+        }
+
+        return '';
     }
 
     protected function parseComment(string $comment): string
