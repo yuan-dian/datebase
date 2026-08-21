@@ -25,15 +25,20 @@ trait HydratesModels
     private static array $reverseMapCache = [];
 
     /**
-     * 获取列名→属性名反向映射（静态缓存）
+     * 获取列名→属性名反向映射（静态缓存，含小写兜底键）
      *
      * @param class-string<Model> $modelClass 模型类名
-     * @return array<string, string> 列名→属性名
+     * @return array<string, string> 列名→属性名（含小写键兜底）
      */
     protected function getReverseColumnMap(string $modelClass): array
     {
         if (!isset(self::$reverseMapCache[$modelClass])) {
-            self::$reverseMapCache[$modelClass] = array_flip($modelClass::getColumnMap());
+            $map = [];
+            foreach ($modelClass::getColumnMap() as $prop => $col) {
+                $map[$col] = $prop;
+                $map[strtolower($col)] = $prop;
+            }
+            self::$reverseMapCache[$modelClass] = $map;
         }
 
         return self::$reverseMapCache[$modelClass];
@@ -56,11 +61,11 @@ trait HydratesModels
         $reverseMap = $this->getReverseColumnMap($this->modelClass);
         $jsonColumns = $meta->jsonColumns;
 
+        $original = [];
         foreach ($row as $column => $value) {
             // 原样命中（Mysql/Sqlite 小写列）→ 小写兜底（Oracle wrap 强制大写列，如 CREATE_TIME → create_time）
-            $propName = $reverseMap[$column] ?? $reverseMap[strtolower($column)] ?? null;
-            // 未命中映射：DB 新增列（不在模型 columnMap 中），camel 兜底并校验属性存在
             // 注意：camel 兜底保持原样输入，禁止 strtolower——否则 CamelCase 列（UserName → userName）会被破坏
+            $propName = $reverseMap[$column] ?? null;
             if ($propName === null) {
                 $propName = StrUtil::camel($column);
                 if (!property_exists($model, $propName)) {
@@ -68,7 +73,8 @@ trait HydratesModels
                 }
             }
             // JSON 列：先反序列化再赋值
-            if (array_key_exists($propName, $jsonColumns)) {
+            $isJson = array_key_exists($propName, $jsonColumns);
+            if ($isJson) {
                 $value = $model::castFromJson($value, $jsonColumns[$propName]);
             }
 
@@ -76,20 +82,11 @@ trait HydratesModels
             if ($value !== null) {
                 $model->$propName = $value;
             }
-        }
 
-        // 填充原始数据快照（dirty 检测基准）：存属性回读值（类型已由属性声明转换），
-        // JSON 列编码为字符串，与 getUpdateData 的比较基准保持一致
-        $original = [];
-        foreach ($columnMap as $prop => $column) {
-            if (!isset($model->$prop)) {
-                continue;
+            // 快照：赋值后立即记录（复用已取 $value + $isJson 标记）
+            if (isset($model->$propName)) {
+                $original[$column] = $isJson ? $model::castToJson($model->$propName) : $model->$propName;
             }
-            $value = $model->$prop;
-            if (array_key_exists($prop, $jsonColumns)) {
-                $value = $model::castToJson($value);
-            }
-            $original[$column] = $value;
         }
         $model->setOriginal($original);
 
