@@ -232,10 +232,25 @@ abstract class PDOConnection extends Connection
         $this->linkWrite = null;
         $this->linkRead = null;
         $this->links = [];
+        $this->info = [];
         $this->transTimes = 0;
         $this->pdoStatement = null;
 
         return $this;
+    }
+
+    /**
+     * 清除 schema 缓存
+     *
+     * @param string|null $schema 指定 schema 名清除，null 清除全部
+     */
+    public function clearSchemaCache(?string $schema = null): void
+    {
+        if ($schema === null) {
+            $this->info = [];
+        } else {
+            unset($this->info[$schema]);
+        }
     }
 
     // ======================== SQL 执行 ========================

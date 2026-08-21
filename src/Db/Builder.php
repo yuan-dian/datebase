@@ -373,6 +373,11 @@ class Builder extends BaseBuilder
         if ($value instanceof Raw) {
             return '( ' . $key . ' ' . $value->getValue() . ' )';
         }
+
+        if (!is_string($value)) {
+            throw new DbException("parseExp expects string or Raw, " . get_debug_type($value) . " given");
+        }
+
         return '( ' . $key . ' ' . $value . ' )';
     }
 

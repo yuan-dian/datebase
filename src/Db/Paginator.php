@@ -27,12 +27,12 @@ use yuandian\Database\Model\Model;
  */
 class Paginator implements JsonSerializable, ArrayAccess, Countable, IteratorAggregate
 {
-    protected static Closure $currentPageResolver;
+    protected static ?Closure $currentPageResolver = null;
 
     /**
      * 自定义分页类
      */
-    protected static Closure $maker;
+    protected static ?Closure $maker = null;
 
     /**
      * @param TItem[] $items 当前页数据
@@ -191,6 +191,15 @@ class Paginator implements JsonSerializable, ArrayAccess, Countable, IteratorAgg
     public static function currentPageResolver(Closure $resolver): void
     {
         static::$currentPageResolver = $resolver;
+    }
+
+    /**
+     * 重置静态闭包（Swoole/RoadRunner 等常驻进程 Worker 启动时调用）
+     */
+    public static function reset(): void
+    {
+        static::$currentPageResolver = null;
+        static::$maker = null;
     }
 
     // ======================== 序列化 ========================

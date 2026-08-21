@@ -34,6 +34,9 @@ class DbManager
     /** @var array 日志记录 */
     protected array $log = [];
 
+    /** @var int 最大日志条数（0=不限制） */
+    protected int $maxLogSize = 1000;
+
     // ===================== 配置 =====================
 
     public function setConfig(array $config): void
@@ -188,6 +191,11 @@ class DbManager
     /**
      * 记录日志
      */
+    public function setMaxLogSize(int $max): void
+    {
+        $this->maxLogSize = $max;
+    }
+
     public function log(string $message, string $level = 'info'): void
     {
         $this->log[] = [
@@ -195,6 +203,10 @@ class DbManager
             'level'   => $level,
             'message' => $message,
         ];
+
+        if ($this->maxLogSize > 0 && count($this->log) > $this->maxLogSize) {
+            $this->log = array_slice($this->log, -$this->maxLogSize);
+        }
     }
 
     /**
@@ -203,5 +215,13 @@ class DbManager
     public function getLog(): array
     {
         return $this->log;
+    }
+
+    /**
+     * 清空日志
+     */
+    public function clearLog(): void
+    {
+        $this->log = [];
     }
 }
