@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace yuandian\Database\Db;
 
 use Closure;
+use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Db\State\QueryState;
 use yuandian\Database\Db\State\WhereCondition;
 use yuandian\Database\Db\State\WhereGroup;
@@ -339,21 +340,19 @@ class Builder extends BaseBuilder
             $value = explode(',', $value);
         }
 
-        if ($operator === 'NOT BETWEEN') {
-            $bind[] = $value[0];
-            $bind[] = $value[1];
-            return $key . ' NOT BETWEEN ? AND ?';
+        if (!is_array($value) || count($value) < 2) {
+            throw new DbException("BETWEEN 需要恰好 2 个元素，当前提供 " . count($value) . " 个");
         }
 
         $bind[] = $value[0];
         $bind[] = $value[1];
-        return $key . ' BETWEEN ? AND ?';
+        return $key . ' ' . $operator . ' ? AND ?';
     }
 
     protected function parseIn(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
-        if (empty($value)) {
-            return $operator === 'IN' ? '0' : '1';
+        if (!is_array($value) || empty($value)) {
+            throw new DbException("IN 条件需要非空数组，当前为空");
         }
 
         $placeholders = [];
@@ -386,6 +385,10 @@ class Builder extends BaseBuilder
     {
         if (is_string($value)) {
             $value = explode(',', $value);
+        }
+
+        if (!is_array($value) || count($value) < 2) {
+            throw new DbException("BETWEEN TIME 需要恰好 2 个元素，当前提供 " . count($value) . " 个");
         }
 
         $bind[] = $value[0];
@@ -425,7 +428,7 @@ class Builder extends BaseBuilder
             [$op, $compareField] = $value;
             $op = strtoupper($op);
             if (!in_array($op, $this->parser['parseCompare'], true)) {
-                $op = '=';
+                throw new DbException("无效的列比较运算符: '{$op}'，允许值: " . implode(', ', $this->parser['parseCompare']));
             }
             return '( ' . $key . ' ' . $op . ' ' . $this->parseKey($compareField) . ' )';
         }
@@ -462,10 +465,10 @@ class Builder extends BaseBuilder
             if ($field instanceof Raw) {
                 $orders[] = $field->getValue();
             } else {
-                // 方向白名单：仅允许 ASC/DESC，其余归 ASC，防止 SQL 注入
+                // 方向白名单：仅允许 ASC/DESC，其余抛异常
                 $dir = strtoupper((string)$dir);
                 if (!in_array($dir, ['ASC', 'DESC'], true)) {
-                    $dir = 'ASC';
+                    throw new DbException("无效的排序方向: '{$dir}'，仅允许 ASC/DESC");
                 }
                 $orders[] = $this->parseKey($field) . ' ' . $dir;
             }
@@ -480,7 +483,7 @@ class Builder extends BaseBuilder
         if ($limit !== null) {
             // 负数 limit 各驱动语义不同，统一抛异常
             if ($limit < 0) {
-                throw new \InvalidArgumentException('limit 不能为负数，当前值：' . $limit);
+                throw new DbException('limit 不能为负数，当前值：' . $limit);
             }
             $sql .= ' LIMIT ' . $limit;
         }
@@ -503,7 +506,10 @@ class Builder extends BaseBuilder
         foreach ($union as $u) {
             // 二次防御：即使 state 被直接写入，type 也仅接受 UNION / UNION ALL
             $type = $u['type'] ?? 'UNION';
-            $type = preg_match('/^UNION( ALL)?$/i', $type) ? strtoupper($type) : 'UNION';
+            $type = preg_match('/^UNION( ALL)?$/i', $type) ? strtoupper($type) : null;
+            if ($type === null) {
+                throw new DbException("无效的 UNION 类型: '{$u['type']}'，仅允许 UNION / UNION ALL");
+            }
 
             if ($u['query'] instanceof BaseQuery) {
                 $subState = $u['query']->getState();
@@ -548,7 +554,7 @@ class Builder extends BaseBuilder
             }
         }
 
-        return '';
+        throw new DbException("无效的锁类型: '{$lock}'，允许值: " . implode(', ', self::LOCK_WHITELIST));
     }
 
     protected function parseComment(string $comment): string
