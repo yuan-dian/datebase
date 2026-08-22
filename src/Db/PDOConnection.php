@@ -213,6 +213,15 @@ abstract class PDOConnection extends Connection
         }
     }
 
+    /** 允许的字符集白名单（防止 SET NAMES 注入） */
+    private const CHARSET_WHITELIST = [
+        'utf8', 'utf8mb4', 'utf8mb4_0900_ai_ci',
+        'latin1', 'latin1_swedish_ci',
+        'gbk', 'gb2312', 'gb18030',
+        'big5', 'binary',
+        'ascii', 'cp1252',
+    ];
+
     protected function createPdo(string $dsn, string $username, string $password, array $params): PDO
     {
         $pdo = new PDO($dsn, $username, $password, $params);
@@ -220,6 +229,11 @@ abstract class PDOConnection extends Connection
         $charset = $this->config['charset'] ?? 'utf8mb4';
         // SQLite 字符集内建为 UTF-8，不支持 SET NAMES 语句
         if (($this->config['type'] ?? '') !== 'sqlite') {
+            if (!in_array($charset, self::CHARSET_WHITELIST, true)) {
+                throw new \yuandian\Database\Exceptions\DbException(
+                    "不支持的字符集: '{$charset}'，允许: " . implode(', ', self::CHARSET_WHITELIST)
+                );
+            }
             $pdo->exec("SET NAMES '{$charset}'");
         }
 
