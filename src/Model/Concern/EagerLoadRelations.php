@@ -12,12 +12,7 @@ use yuandian\Database\Attribute\HasOne;
 use yuandian\Database\Attribute\HasOneThrough;
 use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Model\Model;
-use yuandian\Database\Model\Relations\BelongsToManyRelation;
-use yuandian\Database\Model\Relations\BelongsToRelation;
-use yuandian\Database\Model\Relations\HasManyRelation;
-use yuandian\Database\Model\Relations\HasManyThroughRelation;
-use yuandian\Database\Model\Relations\HasOneRelation;
-use yuandian\Database\Model\Relations\HasOneThroughRelation;
+use yuandian\Database\Model\Relations\RelationFactory;
 
 
 /**
@@ -82,33 +77,7 @@ trait EagerLoadRelations
             /** @var HasOne|HasMany|HasOneThrough|HasManyThrough|BelongsTo|BelongsToMany $attr */
             $attr = $info['attribute'];
 
-            $relation = match ($info['type']) {
-                RelationType::HasOne => new HasOneRelation(
-                    $models[0], $attr->model, $attr->foreignKey, $attr->localKey
-                ),
-                RelationType::HasMany => new HasManyRelation(
-                    $models[0],
-                    $attr->model,
-                    $attr->foreignKey,
-                    $attr->localKey
-                ),
-                RelationType::HasOneThrough => new HasOneThroughRelation(
-                    $models[0], $attr->model, $attr->through,
-                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-                ),
-                RelationType::HasManyThrough => new HasManyThroughRelation(
-                    $models[0], $attr->model, $attr->through,
-                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-                ),
-                RelationType::BelongsTo => new BelongsToRelation(
-                    $models[0], $attr->model, $attr->foreignKey, $attr->ownerKey
-                ),
-                RelationType::BelongsToMany => new BelongsToManyRelation(
-                    $models[0], $attr->model, $attr->through,
-                    $attr->foreignKey, $attr->relatedKey, $attr->localKey, $attr->relatedPivotKey
-                ),
-                default => null,
-            };
+            $relation = RelationFactory::create($models[0], $info['type'], $attr);
 
             if ($relation === null) {
                 continue;

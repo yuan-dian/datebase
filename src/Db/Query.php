@@ -150,8 +150,12 @@ class Query extends BaseQuery
         $stmt = $pdo->prepare($compiled->statement);
         $stmt->execute(array_merge($compiled->bind, $this->bind));
 
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            yield $row;
+        try {
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                yield $row;
+            }
+        } finally {
+            $stmt->closeCursor();
         }
     }
 

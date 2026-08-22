@@ -13,11 +13,13 @@ use MongoDB\Driver\Manager;
 use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
 use PDO;
+use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Db\BuilderInterface;
 use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connection;
 use yuandian\Database\Db\MongoQuery as Query;
 use yuandian\Database\Exceptions\DbException;
+use yuandian\Database\Model\MongoModelQuery;
 
 class Mongo extends Connection
 {
@@ -76,6 +78,11 @@ class Mongo extends Connection
             $this->builder = new MongoBuilder($this);
         }
         return $this->builder;
+    }
+
+    public function createModelQuery(string $modelClass): BaseQuery
+    {
+        return new MongoModelQuery($this, $modelClass);
     }
 
     public function getBuilderClass(): string

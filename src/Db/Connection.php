@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace yuandian\Database\Db;
 
 use yuandian\Database\DbManager;
+use yuandian\Database\Model\ModelQuery;
 
 /** @template TModel */
 abstract class Connection implements ConnectionInterface, QueryContext
@@ -101,6 +102,17 @@ abstract class Connection implements ConnectionInterface, QueryContext
         $queryClass = $this->getQueryClass();
 
         return new $queryClass($this, $table);
+    }
+
+    /**
+     * 为 Model 层创建查询实例（子类可覆写以返回不同 Query 类）
+     *
+     * @param string $modelClass 模型类名
+     * @return BaseQuery
+     */
+    public function createModelQuery(string $modelClass): BaseQuery
+    {
+        return new ModelQuery($this, $modelClass);
     }
 
     /**

@@ -8,18 +8,12 @@ use yuandian\Database\Attribute\AutoWriteTime;
 use yuandian\Database\Attribute\Connection;
 use yuandian\Database\Attribute\SoftDelete;
 use yuandian\Database\Db\BaseQuery;
-use yuandian\Database\Db\Connector\Mongo;
 use yuandian\Database\Enums\IdType;
 use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Facade\DB;
-use yuandian\Database\Model\Relations\BelongsToRelation;
-use yuandian\Database\Model\Relations\BelongsToManyRelation;
-use yuandian\Database\Model\Relations\HasManyRelation;
-use yuandian\Database\Model\Relations\HasManyThroughRelation;
-use yuandian\Database\Model\Relations\HasOneRelation;
-use yuandian\Database\Model\Relations\HasOneThroughRelation;
 use yuandian\Database\Model\Relations\Relation;
+use yuandian\Database\Model\Relations\RelationFactory;
 use yuandian\Tools\bean\BeanUtil;
 use yuandian\Tools\utils\SnowflakeUtil;
 use yuandian\Tools\utils\StrUtil;
@@ -110,11 +104,7 @@ abstract class Model
     {
         $connection = Db::connect($class::getConnectionName());
 
-        if ($connection instanceof Mongo) {
-            return new MongoModelQuery($connection, $class);
-        }
-
-        return new ModelQuery($connection, $class);
+        return $connection->createModelQuery($class);
     }
 
     // ===================== CRUD =====================
@@ -350,26 +340,7 @@ abstract class Model
         $attr = $info['attribute'];
 
         if (!isset($this->relationCache[$name])) {
-            $this->relationCache[$name] = match ($info['type']) {
-                RelationType::HasOne => new HasOneRelation($this, $attr->model, $attr->foreignKey, $attr->localKey),
-                RelationType::HasMany => new HasManyRelation($this, $attr->model, $attr->foreignKey, $attr->localKey),
-                RelationType::HasOneThrough => new HasOneThroughRelation(
-                    $this, $attr->model, $attr->through,
-                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-                ),
-                RelationType::HasManyThrough => new HasManyThroughRelation(
-                    $this, $attr->model, $attr->through,
-                    $attr->foreignKey, $attr->throughKey, $attr->localKey, $attr->throughPk
-                ),
-                RelationType::BelongsTo => new BelongsToRelation(
-                    $this, $attr->model, $attr->foreignKey, $attr->ownerKey
-                ),
-                RelationType::BelongsToMany => new BelongsToManyRelation(
-                    $this, $attr->model, $attr->through,
-                    $attr->foreignKey, $attr->relatedKey, $attr->localKey, $attr->relatedPivotKey
-                ),
-                default => null,
-            };
+            $this->relationCache[$name] = RelationFactory::create($this, $info['type'], $attr);
             // 未知类型不缓存（null 无法入缓存，isset 区分不了）
             if ($this->relationCache[$name] === null) {
                 unset($this->relationCache[$name]);
