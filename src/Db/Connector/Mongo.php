@@ -494,7 +494,7 @@ class Mongo extends Connection
         return $result;
     }
 
-    public function getLastInsertId(\yuandian\Database\Db\BaseQuery $query, ?string $sequence = null)
+    public function getLastInsertId(\yuandian\Database\Db\BaseQuery $query, ?string $sequence = null): string
     {
         /** @var MongoBuilder $builder Mongo 连接固定使用 MongoBuilder */
         $builder = $this->builder;

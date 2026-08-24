@@ -10,13 +10,13 @@ interface ConnectionInterface
 {
     public function getQueryClass(): string;
 
-    public function connect(array $config = [], int $linkNum = 0);
+    public function connect(array $config = [], int $linkNum = 0): mixed;
 
     public function setDb(DbManager $db): void;
 
     public function getConfig(string $key = ''): mixed;
 
-    public function close();
+    public function close(): mixed;
 
     public function transaction(callable $callback): mixed;
 
@@ -30,5 +30,5 @@ interface ConnectionInterface
 
     public function getLastSql(): string;
 
-    public function getLastInsertId(BaseQuery $query, ?string $sequence = null);
+    public function getLastInsertId(BaseQuery $query, ?string $sequence = null): string|false;
 }

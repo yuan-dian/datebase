@@ -145,7 +145,7 @@ class DbManager
         return $connection;
     }
 
-    public function __call($method, $args)
+    public function __call(string $method, array $args): mixed
     {
         return call_user_func_array([$this->connect(), $method], $args);
     }

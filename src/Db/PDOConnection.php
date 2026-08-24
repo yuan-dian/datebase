@@ -240,7 +240,7 @@ abstract class PDOConnection extends Connection
         return $pdo;
     }
 
-    public function close()
+    public function close(): static
     {
         $this->linkId = null;
         $this->linkWrite = null;
@@ -511,7 +511,7 @@ abstract class PDOConnection extends Connection
         return $this->getTableInfo($tableName, 'fields');
     }
 
-    public function getTableInfo(string $tableName, string $fetch = '')
+    public function getTableInfo(string $tableName, string $fetch = ''): mixed
     {
         $info = $this->getSchemaInfo($tableName);
         return $fetch && array_key_exists($fetch, $info) ? $info[$fetch] : $info;
@@ -583,19 +583,19 @@ abstract class PDOConnection extends Connection
         return $this->bindType[$type] ?? self::PARAM_STR;
     }
 
-    public function getPrimaryKey(string $tableName)
+    public function getPrimaryKey(string $tableName): string|array|null
     {
         return $this->getTableInfo($tableName, 'pk');
     }
 
-    public function getAutoIncrement(string $tableName)
+    public function getAutoIncrement(string $tableName): ?string
     {
         return $this->getTableInfo($tableName, 'autoinc');
     }
 
     // ======================== 工具方法 ========================
 
-    public function getPdo()
+    public function getPdo(): PDO|false
     {
         return $this->linkId ?: false;
     }
@@ -605,7 +605,7 @@ abstract class PDOConnection extends Connection
         return $this->getRealSql($this->queryStr, $this->bind);
     }
 
-    public function getLastInsertId(BaseQuery $query, ?string $sequence = null)
+    public function getLastInsertId(BaseQuery $query, ?string $sequence = null): string|false
     {
         return $this->linkId ? $this->linkId->lastInsertId() : '';
     }

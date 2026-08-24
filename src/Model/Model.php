@@ -85,7 +85,7 @@ abstract class Model
      * @param array<int, mixed> $args
      * @return mixed
      */
-    public static function __callStatic(string $method, array $args)
+    public static function __callStatic(string $method, array $args): mixed
     {
         $query = static::query();
         if (!method_exists($query, $method)) {
