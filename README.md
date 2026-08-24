@@ -320,8 +320,13 @@ User::whereGroup(function ($q) {
 ### 字段选择
 
 ```php
-User::field('id,userName,email')->select();
 User::field(['id', 'userName', 'email'])->select();
+
+// 别名
+User::field(['id', 'name' => 'userName'])->select();
+
+// Raw 表达式
+User::field([new Raw('COUNT(*) AS total')])->select();
 ```
 
 ### JOIN 查询
@@ -329,7 +334,7 @@ User::field(['id', 'userName', 'email'])->select();
 ```php
 User::alias('u')
     ->leftJoin('profile AS p', 'u.id = p.user_id')
-    ->field('u.userName, p.bio')
+    ->field(['u.userName', 'p.bio'])
     ->select();
 ```
 
