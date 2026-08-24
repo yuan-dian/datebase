@@ -1,145 +1,231 @@
-# yuandian/database - Agent Guide
+# yuandian/database
 
-## What This Is
+一个轻量级的 PHP 8.1+ ORM 库，支持注解驱动模型、多数据库（MySQL、SQLite、MongoDB、Oracle）、关联关系、软删除和雪花 ID。
 
-A lightweight PHP 8.1+ ORM library with annotation-driven models, multi-database support (MySQL, SQLite, MongoDB, Oracle), relations, soft deletes, and snowflake IDs.
+## 特性
 
-**Package**: `yuandian/database` (Composer library)
-**Namespace**: `yuandian\Database\` → `src/`
+- 🚀 注解驱动的模型定义（PHP 8.1 Attributes）
+- 🔌 多数据库支持：MySQL、SQLite、MongoDB、Oracle
+- 🔗 关联关系：HasOne、HasMany、BelongsTo、BelongsToMany、HasOneThrough、HasManyThrough
+- 🗑️ 软删除支持
+- ⏰ 自动时间戳（create_time / update_time）
+- 🎲 雪花 ID / UUID 生成
+- 📦 轻量级，无额外依赖
 
-## Critical Facts
+## 环境要求
 
-### Dependencies (Must Be Present)
-- `yuandian/container` ^1.0 - Container/Facade system
-- `yuandian/tools` dev-master - Utilities (SnowflakeUtil, UUIDUtil, StrUtil, BeanUtil, ClassReflector)
-- `ext-pdo` required, `ext-mongodb` optional
+- PHP >= 8.1
+- ext-pdo（必需）
+- ext-mongodb（可选，用于 MongoDB 支持）
 
-### No Formal Test Framework
-- No PHPUnit, no phpunit.xml, no test runner
-- `tests/test.php` is a manual script requiring live MySQL at `127.0.0.1`
-- Run with: `php tests/test.php`
-- Test models in `tests/model/` (ShareBase, ShareFile, BaseModel)
+## 安装
 
-### Database Config Contains Credentials
-- `src/Config/database.php` has hardcoded production credentials
-- Do NOT commit changes to this file with new credentials
-- Tests override config via `Db::setConfig($config)` in test.php
+```bash
+composer require yuandian/database
+```
 
-### Code Style
-- All files use `declare(strict_types=1)`
-- Chinese comments throughout (author: 原点 <467490186@qq.com>)
-- PSR-4 autoloading, no sub-namespace nesting beyond 2 levels
-- Properties are public, typed, with default values
+## 快速开始
 
-## Architecture
+### 配置
 
-### Key Entry Points
-- `Model\Model` - Base model class, all models extend this
-- `DbManager` - Connection manager, accessed via `DB` facade
-- `Facade\DB` - Static facade for `DbManager`
-- `Db\BaseQuery` - Query builder (chainable)
-- `Db\Connection` → `Db\PDOConnection` - Database connections
-
-### Model Definition Pattern
 ```php
-#[Table('table_name')]        // Optional: auto-derives from class name (camelCase → snake_case)
-#[Connection('mysql')]        // Optional: uses default if omitted
-#[SoftDelete]                 // Optional: soft delete support
-#[AutoWriteTime]              // Optional: auto timestamps
-class MyModel extends Model
+use yuandian\Database\DbManager;
+use yuandian\Database\Facades\DB;
+
+DbManager::setConfig([
+    'default' => 'mysql',
+    'connections' => [
+        'mysql' => [
+            'host'     => '127.0.0.1',
+            'port'     => 3306,
+            'database' => 'your_database',
+            'username' => 'root',
+            'password' => '',
+            'charset'  => 'utf8mb4',
+        ],
+        'sqlite' => [
+            'database' => ':memory:',
+        ],
+    ],
+]);
+```
+
+### 定义模型
+
+```php
+use yuandian\Database\Model\Model;
+use yuandian\Database\Attribute\Table;
+use yuandian\Database\Attribute\TableId;
+use yuandian\Database\Attribute\SoftDelete;
+use yuandian\Database\Attribute\AutoWriteTime;
+use yuandian\Database\Enums\IdType;
+
+#[Table('users')]
+#[SoftDelete]
+#[AutoWriteTime]
+class User extends Model
 {
-    #[TableId(IdType::AUTO)]  // Required: AUTO, ASSIGN_ID (snowflake), or ASSIGN_UUID
+    #[TableId(IdType::AUTO)]
     public int $id = 0;
 
-    public string $name = ''; // camelCase property → snake_case column
+    public string $name = '';
+
+    public string $email = '';
+
+    public int $age = 0;
 }
 ```
 
-### Relation Annotations
-- `#[HasOne(Related::class, foreignKey, localKey)]`
-- `#[HasMany(Related::class, foreignKey, localKey)]`
-- `#[HasOneThrough(model, through, foreignKey, throughKey, localKey, throughPk)]`
-- `#[HasManyThrough(model, through, foreignKey, throughKey, localKey, throughPk)]`
+> 💡 **注意**：属性使用 camelCase 命名，自动转换为 snake_case 列名（`$testUserId` → `test_user_id`）
 
-### Query Pattern
+### CRUD 操作
+
 ```php
-// Static call → BaseQuery chain → terminal method
-User::where('age', '>', 18)->select();  // Returns array
-User::where('id', 1)->find();            // Returns model|null
-User::with('relation')->select();        // Eager loading
+// 创建
+$user = new User();
+$user->name = '张三';
+$user->email = 'zhangsan@example.com';
+$user->age = 25;
+$user->insert();
+
+// 查询
+$user = User::where('id', '=', 1)->find();
+$users = User::where('age', '>', 18)->select();
+
+// 更新
+$user->age = 26;
+$user->save();
+
+// 删除（软删除）
+$user->delete();
+
+// 恢复
+$user->restore();
+
+// 强制删除
+$user->force()->delete();
 ```
 
-## Directory Structure
+### 关联关系
+
+```php
+use yuandian\Database\Attribute\HasOne;
+use yuandian\Database\Attribute\HasMany;
+use yuandian\Database\Attribute\BelongsTo;
+use yuandian\Database\Attribute\BelongsToMany;
+
+class Post extends Model
+{
+    #[HasOne(Profile::class, 'user_id', 'id')]
+    public ?Profile $profile = null;
+
+    #[HasMany(Comment::class, 'post_id', 'id')]
+    public ?array $comments = null;
+
+    #[BelongsTo(User::class, 'user_id', 'id')]
+    public ?User $user = null;
+
+    #[BelongsToMany(Tag::class, 'post_tag', 'post_id', 'tag_id')]
+    public ?array $tags = null;
+}
+
+// 预加载
+$posts = Post::with(['user', 'comments'])->select();
+
+// 懒加载
+$post->load('comments');
+```
+
+### 查询构建器
+
+```php
+// 链式调用
+$users = User::where('age', '>', 18)
+    ->where('status', '=', 'active')
+    ->order('id', 'DESC')
+    ->limit(10)
+    ->select();
+
+// 聚合
+$count = User::where('age', '>', 18)->count();
+$avg = User::avg('age');
+
+// 事务
+DB::transaction(function () {
+    $user = new User();
+    $user->name = '新用户';
+    $user->insert();
+});
+```
+
+## 测试
+
+```bash
+# 安装依赖
+composer install
+
+# 运行测试
+php vendor/bin/phpunit --no-configuration --bootstrap tests/bootstrap.php tests/SQLite/
+```
+
+## 项目结构
 
 ```
 src/
-├── Attribute/          # PHP 8.1 attributes (Table, TableId, Connection, HasOne, etc.)
+├── Attribute/          # PHP 8.1 注解（Table, TableId, SoftDelete, HasOne 等）
 ├── Config/
-│   └── database.php    # Default config (hardcoded credentials - edit carefully)
+│   └── database.php    # 默认配置
 ├── Db/
-│   ├── Builder/        # SQL builders per driver (Mysql, Oracle, Sqlite, Mongo)
-│   ├── Connector/      # Driver connectors
-│   ├── BaseQuery.php   # Query builder
-│   ├── Connection.php  # Abstract connection
+│   ├── Builder/        # SQL 构建器（MySQL, Oracle, SQLite, MongoDB）
+│   ├── Connector/      # 数据库连接器
+│   ├── BaseQuery.php   # 查询构建器
+│   ├── Connection.php  # 抽象连接
 │   ├── PDOConnection.php
-│   └── MongoQuery.php  # MongoDB-specific query
+│   └── MongoQuery.php  # MongoDB 查询
 ├── Enums/
-│   └── IdType.php      # AUTO, ASSIGN_ID, ASSIGN_UUID
+│   └── IdType.php      # ID 类型：AUTO, ASSIGN_ID, ASSIGN_UUID
 ├── Exceptions/
 ├── Facade/
-│   └── DB.php          # Static facade
+│   └── DB.php          # 静态门面
 ├── Model/
-│   ├── Model.php       # Base model (605 lines, core logic)
-│   └── Relations/      # Relation implementations
-└── DbManager.php       # Connection manager
-tests/
-├── test.php            # Manual test script
-└── model/              # Test models
+│   ├── Model.php       # 基础模型
+│   └── Relations/      # 关联关系实现
+└── DbManager.php       # 连接管理器
 ```
 
-## Common Tasks
+## 代码规范
 
-### Adding a New Model
-1. Create class extending `yuandian\Database\Model\Model`
-2. Add `#[Table]` annotation (or let it auto-derive)
-3. Add `#[TableId]` to primary key property
-4. Use camelCase for properties (auto-converts to snake_case columns)
-5. Set typed defaults (0 for int, '' for string, null for nullable)
+- 所有文件使用 `declare(strict_types=1)`
+- 属性使用 camelCase，自动转换为 snake_case 列名
+- 使用 PHP 8.1 Attributes 定义元数据
+- PSR-4 自动加载
 
-### Adding a New Relation
-1. Add property with type hint
-2. Add `#[HasOne]`/`#[HasMany]` annotation with foreign/local keys
-3. Use `$model->load('relationName')` for lazy loading
-4. Use `Model::with('relationName')` for eager loading
+## 贡献指南
 
-### Modifying Query Builder
-- `src/Db/BaseQuery.php` - Main query builder
-- `src/Db/Builder/Mysql.php` - MySQL-specific SQL generation
-- Query methods return `$this` for chaining
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
 
-## What NOT To Do
+### 提交规范
 
-- Do NOT use PHPUnit (not installed)
-- Do NOT run `composer update` without checking `yuandian/tools` dev-master compatibility
-- Do NOT modify `src/Config/database.php` credentials
-- Do NOT add new dependencies without checking yuandian/* packages first
-- Do NOT use `as any` or suppress types (PHP doesn't have this, but avoid type juggling)
-- Do NOT create Blade templates or views (this is a library, not an app)
+使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
 
-## External References
+- `feat:` 新功能
+- `fix:` 修复 bug
+- `docs:` 文档更新
+- `style:` 代码格式（不影响功能）
+- `refactor:` 重构
+- `perf:` 性能优化
+- `test:` 测试相关
+- `chore:` 构建/工具相关
 
-- Dependencies: `vendor/yuandian/container/`, `vendor/yuandian/tools/`
-- Related packages in same org: yuandian/container, yuandian/tools
+## 许可证
 
-## Quick Verification
+MIT License
 
-```bash
-# Check syntax
-php -l src/Model/Model.php
+## 相关包
 
-# Run manual test (requires MySQL at 127.0.0.1)
-php tests/test.php
-
-# Check autoload
-composer dump-autoload
-```
+- [yuandian/container](https://github.com/yuandian/container) - 容器/门面系统
+- [yuandian/tools](https://github.com/yuandian/tools) - 工具类库
