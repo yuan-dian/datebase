@@ -9,6 +9,7 @@ use yuandian\Tools\utils\StrUtil;
 
 class BelongsToManyRelation extends Relation
 {
+    protected bool $isMany = true;
     protected string $through;
     protected string $relatedKey;
     protected string $relatedPivotKey;
@@ -112,21 +113,4 @@ class BelongsToManyRelation extends Relation
         return $grouped;
     }
 
-    protected function collectLocalValues(array $models): array
-    {
-        $localKeyProp = StrUtil::camel($this->localKey);
-        $values = [];
-        foreach ($models as $model) {
-            $value = $model->{$localKeyProp} ?? null;
-            if ($value !== null) {
-                $values[] = $value;
-            }
-        }
-        return array_values(array_unique($values));
-    }
-
-    protected function extractResult(mixed $group, mixed $key): mixed
-    {
-        return $group ?? [];
-    }
 }

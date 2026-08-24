@@ -56,47 +56,11 @@ class BelongsToRelation extends Relation
 
     protected function collectLocalValues(array $models): array
     {
-        $foreignKeyProp = StrUtil::camel($this->foreignKey);
-        $values = [];
-        foreach ($models as $model) {
-            $value = $model->{$foreignKeyProp} ?? null;
-            if ($value !== null) {
-                $values[] = $value;
-            }
-        }
-        return array_values(array_unique($values));
+        return $this->collectValuesByColumn($models, $this->foreignKey);
     }
 
-    protected function extractResult(mixed $group, mixed $key): mixed
+    protected function getLookupKeyProperty(): string
     {
-        return $group ?? null;
-    }
-
-    public function eagerLoad(array $models, string $name): array
-    {
-        $foreignKeyProp = StrUtil::camel($this->foreignKey);
-        $values = $this->collectLocalValues($models);
-
-        if (empty($values)) {
-            foreach ($models as $model) {
-                $model->setRelation($name, null);
-            }
-            return [];
-        }
-
-        $map = $this->matchMany($values);
-        $instances = [];
-
-        foreach ($models as $model) {
-            $keyVal = $model->{$foreignKeyProp} ?? null;
-            $result = $this->extractResult($map[$keyVal] ?? null, $keyVal);
-            $model->setRelation($name, $result);
-
-            if ($result !== null) {
-                $instances[] = $result;
-            }
-        }
-
-        return $instances;
+        return StrUtil::camel($this->foreignKey);
     }
 }

@@ -19,6 +19,9 @@ abstract class Relation
     protected string $foreignKey;
     protected string $localKey;
 
+    /** 是否为"多"关联（HasMany/HasManyThrough/BelongsToMany），影响 extractResult 默认行为 */
+    protected bool $isMany = false;
+
     public function __construct(Model $parent, string $related, string $foreignKey, string $localKey)
     {
         $this->parent = $parent;
@@ -39,18 +42,55 @@ abstract class Relation
     abstract public function matchMany(array $localValues): array;
 
     /**
+     * 按指定列名收集模型数组的值（去重，忽略 null）
+     *
+     * @param Model[] $models
+     * @param string $column 数据库列名（snake_case）
+     * @return list<scalar>
+     */
+    protected function collectValuesByColumn(array $models, string $column): array
+    {
+        $prop = StrUtil::camel($column);
+        $values = [];
+        foreach ($models as $model) {
+            $value = $model->{$prop} ?? null;
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+        return array_values(array_unique($values));
+    }
+
+    /**
      * 从模型数组中收集本地键值（用于批量 IN 查询）
+     * 默认使用 localKey；BelongsTo 子类覆写为 foreignKey
+     *
      * @param Model[] $models
      * @return list<scalar>
      */
-    abstract protected function collectLocalValues(array $models): array;
+    protected function collectLocalValues(array $models): array
+    {
+        return $this->collectValuesByColumn($models, $this->localKey);
+    }
 
     /**
      * 从 matchMany 分组结果中提取单个模型的关联值
-     * HasOne/HasOneThrough: $group[$key] ?? null（取首条）
-     * HasMany/HasManyThrough: $group[$key] ?? []（取整组）
+     * One 关联返回 Model|null，Many 关联返回 Model[]
      */
-    abstract protected function extractResult(mixed $group, mixed $key): mixed;
+    protected function extractResult(mixed $group, mixed $key): mixed
+    {
+        return $this->isMany ? ($group ?? []) : ($group ?? null);
+    }
+
+    /**
+     * eagerLoad 时用于从模型上读取分组 key 的属性名
+     * 默认使用 localKey（HasOne/HasMany/Through 系列）
+     * BelongsTo 子类覆写为 foreignKey
+     */
+    protected function getLookupKeyProperty(): string
+    {
+        return StrUtil::camel($this->localKey);
+    }
 
     /**
      * 批量预加载：收集 localKey → matchMany → 分发回模型
@@ -59,7 +99,7 @@ abstract class Relation
      */
     public function eagerLoad(array $models, string $name): array
     {
-        $localKeyProp = StrUtil::camel($this->localKey);
+        $lookupKey = $this->getLookupKeyProperty();
         $values = $this->collectLocalValues($models);
         if (empty($values)) {
             foreach ($models as $model) {
@@ -70,7 +110,7 @@ abstract class Relation
         $map = $this->matchMany($values);
         $instances = [];
         foreach ($models as $model) {
-            $keyVal = $model->{$localKeyProp} ?? null;
+            $keyVal = $model->{$lookupKey} ?? null;
             $result = $this->extractResult($map[$keyVal] ?? null, $keyVal);
             $model->setRelation($name, $result);
             if (is_array($result)) {
