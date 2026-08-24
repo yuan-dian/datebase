@@ -31,13 +31,17 @@
     - [JOIN 查询](#join-查询)
     - [分组与聚合](#分组与聚合)
 - [聚合查询](#聚合查询)
+- [分页查询](#分页查询)
 - [关联关系](#关联关系)
     - [一对一 HasOne](#一对一-hasone)
     - [一对多 HasMany](#一对多-hasmany)
+    - [多对多 BelongsToMany](#多对多-belongstomany)
     - [远程一对一 HasOneThrough](#远程一对一-hasonethrough)
     - [远程一对多 HasManyThrough](#远程一对多-hasmanythrough)
     - [懒加载](#懒加载)
     - [预加载](#预加载)
+- [模型事件](#模型事件)
+- [JSON 列](#json-列)
 - [软删除](#软删除)
     - [基本用法](#基本用法)
     - [继承 BaseModel](#继承-basemodel)
@@ -339,6 +343,25 @@ $min   = User::min('age');
 $avg   = User::avg('age');
 ```
 
+### 分页查询
+
+```php
+// 完整分页（查询总数，显示所有页码）
+$paginator = User::where('age', '>', 18)->paginate(15);
+echo $paginator->total();       // 总记录数
+echo $paginator->lastPage();    // 最后一页页码
+echo $paginator->currentPage(); // 当前页码
+foreach ($paginator->items() as $user) { ... }
+
+// 简单分页（不查总数，仅上一页/下一页）
+$paginator = User::where('age', '>', 18)->simplePaginate(15);
+
+// 分页器实现了 JsonSerializable / ArrayAccess / Countable / IteratorAggregate
+echo count($paginator);          // 当前页条数
+echo json_encode($paginator);    // JSON 序列化
+foreach ($paginator as $user) { ... }  // 直接遍历
+```
+
 ## 关联关系
 
 关联通过属性注解定义，支持预加载与手动加载。
@@ -394,6 +417,50 @@ class Chapter extends Model
     public string $name = '';
 }
 ```
+
+### 多对多 BelongsToMany
+
+```php
+use yuandian\Database\Attribute\BelongsToMany;
+
+#[Table('user')]
+class User extends Model
+{
+    #[TableId(IdType::AUTO)]
+    public int $id = 0;
+    public string $name = '';
+
+    // 参数：目标模型, 中间表模型, 中间表.当前外键, 中间表.目标外键
+    #[BelongsToMany(Tag::class, UserTag::class, 'user_id', 'tag_id')]
+    public array $tags;
+}
+
+#[Table('tag')]
+class Tag extends Model
+{
+    #[TableId(IdType::AUTO)]
+    public int $id = 0;
+    public string $name = '';
+}
+
+#[Table('user_tag')]  // 中间表
+class UserTag extends Model
+{
+    #[TableId(IdType::AUTO)]
+    public int $id = 0;
+    public int $userId = 0;
+    public int $tagId = 0;
+}
+```
+
+| 参数            | 说明              |
+|---------------|-----------------|
+| `model`       | 目标关联模型          |
+| `through`     | 中间表模型           |
+| `foreignKey`  | 中间表 → 当前模型的外键    |
+| `relatedKey`  | 中间表 → 目标模型的外键    |
+| `localKey`    | 当前模型的本地键（默认 `id`） |
+| `relatedPivotKey` | 中间表的主键（默认 `id`） |
 
 ### 远程一对一 HasOneThrough
 
@@ -484,6 +551,121 @@ foreach ($books as $book) {
 $book = Book::whereEqual('book_id', 1)->find();
 $book->load('chapters', 'isbn');
 ```
+
+## 模型事件
+
+支持 11 个生命周期事件，可在模型方法或监听器中拦截操作（返回 `false` 阻止执行）。
+
+### 事件列表
+
+| 事件                | 触发时机       | 可阻止 |
+|-------------------|-----------|-----|
+| `beforeInsert`    | INSERT 前   | ✅  |
+| `afterInsert`     | INSERT 后   | ❌  |
+| `beforeUpdate`    | UPDATE 前   | ✅  |
+| `afterUpdate`     | UPDATE 后   | ❌  |
+| `beforeDelete`    | DELETE 前   | ✅  |
+| `afterDelete`     | DELETE 后   | ❌  |
+| `beforeForceDelete` | 强制删除前     | ✅  |
+| `afterForceDelete`  | 强制删除后     | ❌  |
+| `beforeRestore`   | 恢复前       | ✅  |
+| `afterRestore`    | 恢复后       | ❌  |
+| `afterRead`       | 查询水合每行后    | ❌  |
+
+### 模型方法方式
+
+在模型中定义 `on{Event}` 方法即可自动触发：
+
+```php
+class User extends Model
+{
+    #[TableId(IdType::AUTO)]
+    public int $id = 0;
+    public string $name = '';
+    public string $email = '';
+
+    /** 插入前校验邮箱 */
+    protected function onBeforeInsert(): bool
+    {
+        if (!filter_var($this->email, FILTER_VALIDATE_EMAIL)) {
+            return false; // 阻止插入
+        }
+        return true;
+    }
+
+    /** 删除后清理缓存 */
+    protected function onAfterDelete(): void
+    {
+        cache()->delete("user:{$this->id}");
+    }
+}
+```
+
+### 监听器方式
+
+```php
+// 全局监听（所有模型生效）
+User::listen('beforeInsert', function (User $user) {
+    // 返回 false 阻止操作
+});
+
+// 模型级监听（仅当前模型）
+User::modelListen('afterInsert', function (User $user) {
+    log("新用户注册: {$user->name}");
+});
+```
+
+## JSON 列
+
+使用 `#[JsonColumn]` 注解标记属性，写入时自动序列化为 JSON 字符串，读取时自动反序列化。
+
+```php
+use yuandian\Database\Attribute\JsonColumn;
+
+class Product extends Model
+{
+    #[TableId(IdType::AUTO)]
+    public int $id = 0;
+    public string $name = '';
+
+    // 存储为 JSON 数组
+    #[JsonColumn]
+    public ?array $tags = null;
+
+    // 存储为 JSON，读取时自动转为类实例
+    #[JsonColumn(ProductOptions::class)]
+    public ?ProductOptions $options = null;
+}
+
+class ProductOptions implements \JsonSerializable
+{
+    public function __construct(
+        public string $color = '',
+        public int $size = 0,
+    ) {}
+
+    public function jsonSerialize(): array
+    {
+        return ['color' => $this->color, 'size' => $this->size];
+    }
+}
+
+// 使用
+$product = new Product();
+$product->name = 'T恤';
+$product->tags = ['cotton', 'summer'];
+$product->options = new ProductOptions(color: 'red', size: 42);
+$product->save();
+
+$product = Product::whereEqual('id', $product->id)->find();
+echo $product->tags[0];      // cotton
+echo $product->options->color; // red
+```
+
+| 用法                     | 说明                |
+|------------------------|-------------------|
+| `#[JsonColumn]`        | 属性序列化为数组          |
+| `#[JsonColumn(Cls::class)]` | 属性序列化为指定类的实例      |
 
 ## 软删除
 
