@@ -107,6 +107,20 @@ class ModelMetaResolver
             }
         }
 
+        // 事件方法扫描：检查模型是否声明了 on{Event} 方法
+        $eventNames = [
+            'beforeInsert', 'afterInsert', 'beforeUpdate', 'afterUpdate',
+            'beforeDelete', 'afterDelete', 'beforeForceDelete', 'afterForceDelete',
+            'beforeRestore', 'afterRestore', 'afterRead',
+        ];
+        $eventMethods = [];
+        foreach ($eventNames as $event) {
+            $method = 'on' . ucfirst($event);
+            if (method_exists($class, $method)) {
+                $eventMethods[] = $method;
+            }
+        }
+
         return new ModelMeta(
             $tableName,
             $connectionName,
@@ -119,6 +133,7 @@ class ModelMetaResolver
             $relations,
             $jsonColumns,
             $nullable,
+            $eventMethods,
         );
     }
 

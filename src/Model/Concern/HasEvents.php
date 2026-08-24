@@ -57,13 +57,16 @@ trait HasEvents
      *
      * @return bool true=已阻止后续执行
      */
-    protected function fireEvent(string $event): bool
+    protected function triggerEvent(string $event): bool
     {
-        // 1. 模型方法 on{Event}（如 onBeforeInsert）
-        $method = 'on' . ucfirst($event);
-        if (method_exists($this, $method)) {
-            if ($this->$method() === false) {
-                return true;
+        // 1. 模型方法 on{Event}（如 onBeforeInsert）— 使用 ModelMeta 缓存避免 method_exists 运行时开销
+        $eventMethods = static::getMeta()->eventMethods;
+        if ($eventMethods !== []) {
+            $method = 'on' . ucfirst($event);
+            if (in_array($method, $eventMethods, true)) {
+                if ($this->$method() === false) {
+                    return true;
+                }
             }
         }
 
@@ -87,12 +90,12 @@ trait HasEvents
     /**
      * 触发 afterRead 事件（供 toModel 调用）
      *
-     * fireEvent 是 protected，toModel 在 ModelQuery 上执行，
+     * triggerEvent 是 protected，toModel 在 ModelQuery 上执行，
      * 需要公开方法供外部调用。
      */
-    public function fireAfterRead(): void
+    public function triggerAfterRead(): void
     {
-        $this->fireEvent('afterRead');
+        $this->triggerEvent('afterRead');
     }
 
     /**

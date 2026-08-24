@@ -85,7 +85,7 @@ trait ConvertsToModels
             $model->setSoftDeleted(true);
         }
 
-        $model->fireAfterRead();
+        $model->triggerAfterRead();
 
         return $model;
     }

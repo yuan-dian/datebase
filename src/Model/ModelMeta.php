@@ -32,6 +32,7 @@ final class ModelMeta
      * @param array<string, array{type: RelationType, attribute: object}> $relations 属性名→关联定义
      * @param array<string, string|null> $jsonColumns 属性名→反序列化目标类（null → 原生数组）
      * @param array<string, bool> $nullable 属性名→是否可空
+     * @param list<string> $eventMethods 模型上已声明的事件方法名（如 onBeforeInsert, onAfterRead）
      */
     public function __construct(
         public readonly string $table,
@@ -45,6 +46,7 @@ final class ModelMeta
         public readonly array $relations,
         public readonly array $jsonColumns,
         public readonly array $nullable,
+        public readonly array $eventMethods = [],
     ) {
     }
 }
