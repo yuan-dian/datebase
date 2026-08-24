@@ -9,3 +9,5 @@
 
 # Sisyphus 工作区工具目录
 .sisyphus/
+.doc/
+docs/
