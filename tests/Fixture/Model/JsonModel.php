@@ -1,0 +1,25 @@
+<?php
+declare(strict_types=1);
+
+namespace yuandian\Database\Tests\Fixture\Model;
+
+use yuandian\Database\Attribute\JsonColumn;
+use yuandian\Database\Attribute\Table;
+use yuandian\Database\Attribute\TableId;
+use yuandian\Database\Enums\IdType;
+use yuandian\Database\Model\Model;
+
+#[Table('test_json')]
+class JsonModel extends Model
+{
+    #[TableId(IdType::AUTO)]
+    public int $id = 0;
+
+    public string $name = '';
+
+    #[JsonColumn]
+    public ?array $settings = null;
+
+    #[JsonColumn]
+    public ?array $metadata = null;
+}
