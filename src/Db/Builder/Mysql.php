@@ -7,13 +7,15 @@ namespace yuandian\Database\Db\Builder;
 use Closure;
 use yuandian\Database\Db\BaseBuilder;
 use yuandian\Database\Db\BaseQuery;
-use yuandian\Database\Db\Compiled;
-use yuandian\Database\Db\Express;
-use yuandian\Database\Db\Raw;
+use yuandian\Database\Db\Expression\Compiled;
+use yuandian\Database\Db\Expression\Express;
+use yuandian\Database\Db\Expression\Raw;
 use yuandian\Database\Exceptions\DbException;
-use yuandian\Database\Db\State\QueryState;
-use yuandian\Database\Db\State\WhereCondition;
-use yuandian\Database\Db\State\WhereGroup;
+use yuandian\Database\Db\Expression\QueryState;
+use yuandian\Database\Db\Expression\WhereCondition;
+use yuandian\Database\Db\Expression\WhereGroup;
+use yuandian\Database\Db\Expression\WhereClause;
+use yuandian\Database\Db\Expression\BindContext;
 
 class Mysql extends BaseBuilder
 {
@@ -28,7 +30,7 @@ class Mysql extends BaseBuilder
 
     public function compileSelect(QueryState $state): Compiled
     {
-        $bind = [];
+        $bind = new BindContext();
 
         $sql = strtr($this->selectSql, [
             '%TABLE%'    => $this->parseTable($state->table, $state->alias ?: null),
@@ -46,7 +48,7 @@ class Mysql extends BaseBuilder
             '%FORCE%'    => $this->parseForce($state->forceIndex),
         ]);
 
-        return new Compiled(trim($sql), $bind);
+        return new Compiled(trim($sql), $bind->all());
     }
 
     public function compileInsert(string $table, array $data, ?string $comment = null): Compiled
@@ -111,7 +113,7 @@ class Mysql extends BaseBuilder
 
     public function compileUpdate(string $table, array $data, QueryState $state): Compiled
     {
-        $bind = [];
+        $setBind = [];
         $set = [];
 
         foreach ($data as $key => $val) {
@@ -121,11 +123,11 @@ class Mysql extends BaseBuilder
                 $set[] = $this->parseKey($key) . ' = ' . $this->parseKey($key) . ' ' . $val->getValue();
             } else {
                 $set[] = $this->parseKey($key) . ' = ?';
-                $bind[] = $val;
+                $setBind[] = $val;
             }
         }
 
-        $whereBind = [];
+        $whereBind = new BindContext();
         $sql = strtr($this->updateSql, [
             '%TABLE%'   => $this->parseTable($table),
             '%SET%'     => implode(', ', $set),
@@ -136,12 +138,12 @@ class Mysql extends BaseBuilder
             '%COMMENT%' => $this->parseComment($state->comment),
         ]);
 
-        return new Compiled(trim($sql), array_merge($bind, $whereBind));
+        return new Compiled(trim($sql), array_merge($setBind, $whereBind->all()));
     }
 
     public function compileDelete(string $table, QueryState $state): Compiled
     {
-        $bind = [];
+        $bind = new BindContext();
 
         $sql = strtr($this->deleteSql, [
             '%TABLE%'   => $this->parseTable($table),
@@ -153,7 +155,7 @@ class Mysql extends BaseBuilder
             '%COMMENT%' => $this->parseComment($state->comment),
         ]);
 
-        return new Compiled(trim($sql), $bind);
+        return new Compiled(trim($sql), $bind->all());
     }
 
     protected function parseTable(string|array $table, ?string $alias = null): string
@@ -229,14 +231,14 @@ class Mysql extends BaseBuilder
         return $sql;
     }
 
-    protected function parseWhere(WhereGroup $where, array &$bind): string
+    protected function parseWhere(WhereGroup $where, BindContext $bind): string
     {
         $whereStr = $this->parseWhereGroup($where, $bind);
 
         return $whereStr === '' ? '' : ' WHERE ' . $whereStr;
     }
 
-    protected function parseWhereGroup(WhereGroup $where, array &$bind): string
+    protected function parseWhereGroup(WhereGroup $where, BindContext $bind): string
     {
         if ($where->isEmpty()) {
             return '';
@@ -259,10 +261,10 @@ class Mysql extends BaseBuilder
         return implode(' OR ', $clauses);
     }
 
-    protected function parseWhereCondition(WhereCondition $c, array &$bind): string
+    protected function parseWhereCondition(WhereCondition $c, BindContext $bind): string
     {
         if ($c->value instanceof Raw && $c->field === '') {
-            $bind = array_merge($bind, $c->value->getBind());
+            $bind->merge($c->value->getBind());
             return $c->value->getValue();
         }
 
@@ -271,62 +273,65 @@ class Mysql extends BaseBuilder
             return $nested === '' ? '' : '( ' . $nested . ' )';
         }
 
-        return $this->parseWhereItem($c->field, $c->operator, $c->value, $bind);
+        return $this->parseWhereItem($c, $bind);
     }
 
-    protected function parseWhereItem(string $field, string $operator, mixed $value, array &$bind): string
+    protected function parseWhereItem(WhereCondition $c, BindContext $bind): string
     {
-        $operator = strtoupper($operator);
-        $key = $this->parseKey($field);
+        $operator = strtoupper($c->operator);
+        $key = $this->parseKey($c->field);
+        $clause = new WhereClause($c->field, $key, $operator, $c->value);
 
         $p = $this->parser;
 
         return match (true) {
-            in_array($operator, $p['parseLike'], true)        => $this->parseLike($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseBetween'], true)     => $this->parseBetween($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseIn'], true)          => $this->parseIn($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseExp'], true)         => $this->parseExp($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseNull'], true)        => $this->parseNull($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseBetweenTime'], true) => $this->parseBetweenTime($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseTime'], true)        => $this->parseTime($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseExists'], true)      => $this->parseExists($key, $operator, $value, $field, $bind),
-            in_array($operator, $p['parseColumn'], true)      => $this->parseColumn($key, $operator, $value, $field, $bind),
-            default                                      => $this->parseCompare($key, $this->operatorMap[$operator] ?? $operator, $value, $field, $bind),
+            in_array($operator, $p['parseLike'], true)        => $this->parseLike($clause, $bind),
+            in_array($operator, $p['parseBetween'], true)     => $this->parseBetween($clause, $bind),
+            in_array($operator, $p['parseIn'], true)          => $this->parseIn($clause, $bind),
+            in_array($operator, $p['parseExp'], true)         => $this->parseExp($clause, $bind),
+            in_array($operator, $p['parseNull'], true)        => $this->parseNull($clause, $bind),
+            in_array($operator, $p['parseBetweenTime'], true) => $this->parseBetweenTime($clause, $bind),
+            in_array($operator, $p['parseTime'], true)        => $this->parseTime($clause, $bind),
+            in_array($operator, $p['parseExists'], true)      => $this->parseExists($clause, $bind),
+            in_array($operator, $p['parseColumn'], true)      => $this->parseColumn($clause, $bind),
+            default                                           => $this->parseCompare($clause, $this->operatorMap[$operator] ?? $operator, $bind),
         };
     }
 
-    protected function parseCompare(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseCompare(WhereClause $c, string $operator, BindContext $bind): string
     {
-        if ($value instanceof Raw) {
-            $bind = array_merge($bind, $value->getBind());
-            return $key . ' ' . $operator . ' ' . $value->getValue();
+        if ($c->value instanceof Raw) {
+            $bind->merge($c->value->getBind());
+            return $c->key . ' ' . $operator . ' ' . $c->value->getValue();
         }
 
-        if ($value instanceof Closure) {
+        if ($c->value instanceof Closure) {
             $subQuery = $this->context->newQuery();
-            $value($subQuery);
+            $closure = $c->value;
+            $closure($subQuery);
             $subState = $subQuery->getState();
             $subSql = $this->compileSelect($subState);
-            $bind = array_merge($bind, $subSql->bind);
-            return $key . ' ' . $operator . ' ( ' . $subSql->statement . ' )';
+            $bind->merge($subSql->bind);
+            return $c->key . ' ' . $operator . ' ( ' . $subSql->statement . ' )';
         }
 
-        if ($operator === '=' && is_null($value)) {
-            return $key . ' IS NULL';
+        if ($operator === '=' && is_null($c->value)) {
+            return $c->key . ' IS NULL';
         }
 
-        $bind[] = $value;
-        return $key . ' ' . $operator . ' ?';
+        $bind->add($c->value);
+        return $c->key . ' ' . $operator . ' ?';
     }
 
-    protected function parseLike(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseLike(WhereClause $c, BindContext $bind): string
     {
-        $bind[] = $value;
-        return $key . ' ' . $operator . ' ?';
+        $bind->add($c->value);
+        return $c->key . ' ' . $c->operator . ' ?';
     }
 
-    protected function parseBetween(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseBetween(WhereClause $c, BindContext $bind): string
     {
+        $value = $c->value;
         if (is_string($value)) {
             $value = explode(',', $value);
         }
@@ -335,50 +340,51 @@ class Mysql extends BaseBuilder
             throw new DbException("BETWEEN 需要恰好 2 个元素，当前提供 " . count($value) . " 个");
         }
 
-        $bind[] = $value[0];
-        $bind[] = $value[1];
-        return $key . ' ' . $operator . ' ? AND ?';
+        $bind->add($value[0]);
+        $bind->add($value[1]);
+        return $c->key . ' ' . $c->operator . ' ? AND ?';
     }
 
-    protected function parseIn(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseIn(WhereClause $c, BindContext $bind): string
     {
-        if (!is_array($value) || empty($value)) {
+        if (!is_array($c->value) || empty($c->value)) {
             throw new DbException("IN 条件需要非空数组，当前为空");
         }
 
         $placeholders = [];
-        foreach ($value as $v) {
+        foreach ($c->value as $v) {
             if ($v instanceof Raw) {
                 $placeholders[] = $v->getValue();
             } else {
                 $placeholders[] = '?';
-                $bind[] = $v;
+                $bind->add($v);
             }
         }
 
-        return $key . ' ' . $operator . ' (' . implode(', ', $placeholders) . ')';
+        return $c->key . ' ' . $c->operator . ' (' . implode(', ', $placeholders) . ')';
     }
 
-    protected function parseExp(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseExp(WhereClause $c, BindContext $bind): string
     {
-        if ($value instanceof Raw) {
-            return '( ' . $key . ' ' . $value->getValue() . ' )';
+        if ($c->value instanceof Raw) {
+            return '( ' . $c->key . ' ' . $c->value->getValue() . ' )';
         }
 
-        if (!is_string($value)) {
-            throw new DbException("parseExp expects string or Raw, " . get_debug_type($value) . " given");
+        if (!is_string($c->value)) {
+            throw new DbException("parseExp expects string or Raw, " . get_debug_type($c->value) . " given");
         }
 
-        return '( ' . $key . ' ' . $value . ' )';
+        return '( ' . $c->key . ' ' . $c->value . ' )';
     }
 
-    protected function parseNull(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseNull(WhereClause $c, BindContext $bind): string
     {
-        return $operator === 'NULL' ? $key . ' IS NULL' : $key . ' IS NOT NULL';
+        return $c->operator === 'NULL' ? $c->key . ' IS NULL' : $c->key . ' IS NOT NULL';
     }
 
-    protected function parseBetweenTime(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseBetweenTime(WhereClause $c, BindContext $bind): string
     {
+        $value = $c->value;
         if (is_string($value)) {
             $value = explode(',', $value);
         }
@@ -387,49 +393,50 @@ class Mysql extends BaseBuilder
             throw new DbException("BETWEEN TIME 需要恰好 2 个元素，当前提供 " . count($value) . " 个");
         }
 
-        $bind[] = $value[0];
-        $bind[] = $value[1];
+        $bind->add($value[0]);
+        $bind->add($value[1]);
 
-        return $key . ($operator === 'BETWEEN TIME' ? ' BETWEEN' : ' NOT BETWEEN') . ' ? AND ?';
+        return $c->key . ($c->operator === 'BETWEEN TIME' ? ' BETWEEN' : ' NOT BETWEEN') . ' ? AND ?';
     }
 
-    protected function parseTime(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseTime(WhereClause $c, BindContext $bind): string
     {
-        $bind[] = $value;
-        return $key . ' ' . substr($operator, 0, 2) . ' ?';
+        $bind->add($c->value);
+        return $c->key . ' ' . substr($c->operator, 0, 2) . ' ?';
     }
 
-    protected function parseExists(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseExists(WhereClause $c, BindContext $bind): string
     {
-        if ($value instanceof Raw) {
-            $bind = array_merge($bind, $value->getBind());
-            return $operator . ' ( ' . $value->getValue() . ' )';
+        if ($c->value instanceof Raw) {
+            $bind->merge($c->value->getBind());
+            return $c->operator . ' ( ' . $c->value->getValue() . ' )';
         }
 
-        if ($value instanceof Closure) {
+        if ($c->value instanceof Closure) {
             $subQuery = $this->context->newQuery();
-            $value($subQuery);
+            $closure = $c->value;
+            $closure($subQuery);
             $subState = $subQuery->getState();
             $subSql = $this->compileSelect($subState);
-            $bind = array_merge($bind, $subSql->bind);
-            return $operator . ' ( ' . $subSql->statement . ' )';
+            $bind->merge($subSql->bind);
+            return $c->operator . ' ( ' . $subSql->statement . ' )';
         }
 
-        return $operator . ' ( ' . $value . ' )';
+        return $c->operator . ' ( ' . $c->value . ' )';
     }
 
-    protected function parseColumn(string $key, string $operator, mixed $value, string $field, array &$bind): string
+    protected function parseColumn(WhereClause $c, BindContext $bind): string
     {
-        if (is_array($value) && count($value) === 2) {
-            [$op, $compareField] = $value;
+        if (is_array($c->value) && count($c->value) === 2) {
+            [$op, $compareField] = $c->value;
             $op = strtoupper($op);
             if (!in_array($op, $this->parser['parseCompare'], true)) {
                 throw new DbException("无效的列比较运算符: '{$op}'，允许值: " . implode(', ', $this->parser['parseCompare']));
             }
-            return '( ' . $key . ' ' . $op . ' ' . $this->parseKey($compareField) . ' )';
+            return '( ' . $c->key . ' ' . $op . ' ' . $this->parseKey($compareField) . ' )';
         }
 
-        return $key . ' = ' . $this->parseKey($value);
+        return $c->key . ' = ' . $this->parseKey($c->value);
     }
 
     protected function parseGroup(array $group): string
@@ -487,7 +494,7 @@ class Mysql extends BaseBuilder
         return $sql;
     }
 
-    protected function parseUnion(array $union, array &$bind): string
+    protected function parseUnion(array $union, BindContext $bind): string
     {
         if (empty($union)) {
             return '';
@@ -509,7 +516,7 @@ class Mysql extends BaseBuilder
                     $sub = 'SELECT * FROM ( ' . $sub . ' ) AS t';
                 }
                 $sql .= ' ' . $type . ' ' . $sub;
-                $bind = array_merge($bind, $subSql->bind);
+                $bind->merge($subSql->bind);
             } elseif (is_string($u['query'])) {
                 $sub = $u['query'];
                 if (preg_match('/\bORDER\s+BY\b|\bLIMIT\b/i', $sub)) {

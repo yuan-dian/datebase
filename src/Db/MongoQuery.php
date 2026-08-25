@@ -10,7 +10,7 @@ use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
 use yuandian\Database\Db\Builder\Mongo as MongoBuilder;
 use yuandian\Database\Db\Connector\Mongo as MongoConnection;
-use yuandian\Database\Db\State\WhereGroup;
+use yuandian\Database\Db\Expression\WhereGroup;
 
 /**
  * MongoDB 查询器（Db 层）

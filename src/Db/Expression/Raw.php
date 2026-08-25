@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace yuandian\Database\Db;
+namespace yuandian\Database\Db\Expression;
 
 class Raw
 {

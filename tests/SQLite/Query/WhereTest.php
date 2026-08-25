@@ -6,7 +6,7 @@ namespace yuandian\Database\Tests\SQLite\Query;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use yuandian\Database\Db\Raw;
+use yuandian\Database\Db\Expression\Raw;
 use yuandian\Database\Facade\DB;
 
 class WhereTest extends TestCase

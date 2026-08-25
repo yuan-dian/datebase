@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace yuandian\Database\Db\State;
-
-use yuandian\Database\Db\Raw;
+namespace yuandian\Database\Db\Expression;
 
 /**
  * 类型化查询状态，替代 BaseQuery::$options 裸数组。

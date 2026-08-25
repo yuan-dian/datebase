@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace yuandian\Database\Db;
+namespace yuandian\Database\Db\Expression;
 
 /**
  * Builder 编译结果。SQL 系 statement 为字符串 + bind 数组；

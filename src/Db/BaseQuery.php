@@ -7,7 +7,8 @@ namespace yuandian\Database\Db;
 use yuandian\Database\Db\Concern\AggregateQuery;
 use yuandian\Database\Db\Concern\ParamsBind;
 use yuandian\Database\Db\Concern\WhereQuery;
-use yuandian\Database\Db\State\QueryState;
+use yuandian\Database\Db\Expression\Express;
+use yuandian\Database\Db\Expression\QueryState;
 use yuandian\Database\Exceptions\DbException;
 
 /**

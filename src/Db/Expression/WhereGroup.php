@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace yuandian\Database\Db\State;
+namespace yuandian\Database\Db\Expression;
 
 /**
  * 条件组：AND 组与 OR 组。组内同逻辑连接，组间用 OR 连接。

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db;
 
-use yuandian\Database\Db\State\QueryState;
-use yuandian\Database\Db\State\WhereGroup;
+use yuandian\Database\Db\Expression\BindContext;
+use yuandian\Database\Db\Expression\Compiled;
+use yuandian\Database\Db\Expression\QueryState;
+use yuandian\Database\Db\Expression\WhereGroup;
 
 abstract class BaseBuilder implements BuilderInterface
 {
@@ -58,12 +60,12 @@ abstract class BaseBuilder implements BuilderInterface
     abstract protected function parseField(array $fields): string;
     abstract protected function parseKey(string $key): string;
     abstract protected function parseJoin(array $joins): string;
-    abstract protected function parseWhere(WhereGroup $where, array &$bind): string;
+    abstract protected function parseWhere(WhereGroup $where, BindContext $bind): string;
     abstract protected function parseGroup(array $group): string;
     abstract protected function parseHaving(array $having): string;
     abstract protected function parseOrder(array $order): string;
     abstract protected function parseLimit(?int $limit, ?int $offset): string;
-    abstract protected function parseUnion(array $union, array &$bind): string;
+    abstract protected function parseUnion(array $union, BindContext $bind): string;
     abstract protected function parseLock(bool|string $lock): string;
     abstract protected function parseComment(string $comment): string;
     abstract protected function parseDistinct(bool $distinct): string;

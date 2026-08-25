@@ -14,7 +14,7 @@
 
 declare(strict_types=1);
 
-use yuandian\Database\Db\Raw;
+use yuandian\Database\Db\Expression\Raw;
 use yuandian\Database\Facade\DB;
 use yuandian\Database\Tests\model\RegAutoModel;
 use yuandian\Database\Tests\model\RegSnowModel;

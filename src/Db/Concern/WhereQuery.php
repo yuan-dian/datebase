@@ -6,8 +6,8 @@ namespace yuandian\Database\Db\Concern;
 
 use Closure;
 use InvalidArgumentException;
-use yuandian\Database\Db\Raw;
-use yuandian\Database\Db\State\WhereCondition;
+use yuandian\Database\Db\Expression\Raw;
+use yuandian\Database\Db\Expression\WhereCondition;
 
 trait WhereQuery
 {

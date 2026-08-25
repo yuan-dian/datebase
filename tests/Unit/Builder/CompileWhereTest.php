@@ -6,10 +6,10 @@ namespace yuandian\Database\Tests\Unit\Builder;
 
 use PHPUnit\Framework\TestCase;
 use yuandian\Database\Db\Connector\Sqlite;
-use yuandian\Database\Db\Raw;
-use yuandian\Database\Db\State\QueryState;
-use yuandian\Database\Db\State\WhereCondition;
-use yuandian\Database\Db\State\WhereGroup;
+use yuandian\Database\Db\Expression\Raw;
+use yuandian\Database\Db\Expression\QueryState;
+use yuandian\Database\Db\Expression\WhereCondition;
+use yuandian\Database\Db\Expression\WhereGroup;
 
 class CompileWhereTest extends TestCase
 {

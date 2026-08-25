@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace yuandian\Database\Db\State;
+namespace yuandian\Database\Db\Expression;
 
 use Closure;
-use yuandian\Database\Db\Raw;
 
 /**
  * 单条查询条件。value 显式联合，四种形态：

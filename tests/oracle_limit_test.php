@@ -10,7 +10,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use yuandian\Database\Db\Builder\Oracle;
 use yuandian\Database\Db\Connector\Sqlite;
-use yuandian\Database\Db\State\QueryState;
+use yuandian\Database\Db\Expression\QueryState;
 
 $failures = 0;
 function check(bool $cond, string $label): void

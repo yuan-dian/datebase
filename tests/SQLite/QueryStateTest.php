@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace yuandian\Database\Tests\SQLite;
 
 use PHPUnit\Framework\TestCase;
-use yuandian\Database\Db\State\QueryState;
-use yuandian\Database\Db\State\WhereCondition;
+use yuandian\Database\Db\Expression\QueryState;
+use yuandian\Database\Db\Expression\WhereCondition;
 use yuandian\Database\Facade\DB;
 use yuandian\Database\Tests\Fixture\helpers\RefreshDatabase;
 use yuandian\Database\Tests\Fixture\Model\User;

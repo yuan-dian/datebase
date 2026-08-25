@@ -6,7 +6,7 @@ namespace yuandian\Database\Tests\Unit\Builder;
 
 use PHPUnit\Framework\TestCase;
 use yuandian\Database\Db\Connector\Sqlite;
-use yuandian\Database\Db\Raw;
+use yuandian\Database\Db\Expression\Raw;
 
 class CompileInsertTest extends TestCase
 {

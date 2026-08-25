@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Concern;
 
-use yuandian\Database\Db\State\WhereCondition;
+use yuandian\Database\Db\Expression\WhereCondition;
 
 /**
  * 模型层软删除查询能力：全局作用域过滤、软删/物理删、强制删除。

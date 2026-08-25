@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db\Builder;
 
-use yuandian\Database\Db\Raw;
+use yuandian\Database\Db\Expression\Raw;
 
 class Oracle extends Mysql
 {

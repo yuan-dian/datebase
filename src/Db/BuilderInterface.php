@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db;
 
-use yuandian\Database\Db\State\QueryState;
+use yuandian\Database\Db\Expression\Compiled;
+use yuandian\Database\Db\Expression\QueryState;
 
 /**
  * 统一 Builder 契约：把查询状态编译为可执行产物。
