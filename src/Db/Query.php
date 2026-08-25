@@ -234,7 +234,7 @@ class Query extends BaseQuery
         return $this->connection;
     }
 
-    public function getBuilder(): Builder
+    public function getBuilder(): BuilderInterface
     {
         return $this->builder;
     }

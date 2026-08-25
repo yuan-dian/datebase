@@ -68,7 +68,7 @@ trait AggregateQuery
         return $rows[0]['__agg'] ?? null;
     }
 
-    abstract protected function getBuilder(): \yuandian\Database\Db\Builder|\yuandian\Database\Db\Builder\Mongo;
+    abstract protected function getBuilder(): \yuandian\Database\Db\BuilderInterface;
 
     abstract protected function getConnection(): \yuandian\Database\Db\Connection;
 

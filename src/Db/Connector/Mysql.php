@@ -62,7 +62,7 @@ class Mysql extends PDOConnection
 
     public function getBuilderClass(): string
     {
-        return \yuandian\Database\Db\Builder::class;
+        return \yuandian\Database\Db\Builder\Mysql::class;
     }
 
     protected function supportSavepoint(): bool

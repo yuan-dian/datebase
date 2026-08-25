@@ -2,15 +2,20 @@
 
 declare(strict_types=1);
 
-namespace yuandian\Database\Db;
+namespace yuandian\Database\Db\Builder;
 
 use Closure;
+use yuandian\Database\Db\BaseBuilder;
+use yuandian\Database\Db\BaseQuery;
+use yuandian\Database\Db\Compiled;
+use yuandian\Database\Db\Express;
+use yuandian\Database\Db\Raw;
 use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Db\State\QueryState;
 use yuandian\Database\Db\State\WhereCondition;
 use yuandian\Database\Db\State\WhereGroup;
 
-class Builder extends BaseBuilder
+class Mysql extends BaseBuilder
 {
     /** 允许的 lock 字符串值（防止 SQL 注入） */
     private const LOCK_WHITELIST = [
@@ -167,7 +172,6 @@ class Builder extends BaseBuilder
 
         $sql = $this->wrapTable($table);
 
-        // 表别名：FROM table AS alias（仅 select 链式 alias() 提供）
         if ($alias !== null && $alias !== '') {
             $sql .= ' AS ' . $this->parseKey($alias);
         }
@@ -186,7 +190,6 @@ class Builder extends BaseBuilder
             if ($field instanceof Raw) {
                 $result[] = $field->getValue();
             } elseif (is_string($key)) {
-                // 键值对：原名 => 别名
                 $result[] = $this->parseKey($key) . ' AS ' . $this->parseKey($field);
             } else {
                 $result[] = $this->parseKey(trim($field));
@@ -218,7 +221,6 @@ class Builder extends BaseBuilder
 
         $sql = '';
         foreach ($joins as $join) {
-            // 二次防御：即使 state 被直接写入，type 也仅接受白名单值（防注入）
             $type = strtoupper((string)($join['type'] ?? 'INNER'));
             $type = in_array($type, ['INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS'], true) ? $type : 'INNER';
             $sql .= " {$type} JOIN " . $this->parseTable($join['table']);
@@ -234,11 +236,6 @@ class Builder extends BaseBuilder
         return $whereStr === '' ? '' : ' WHERE ' . $whereStr;
     }
 
-    /**
-     * 解析条件组，返回不带 WHERE 前缀的条件片段
-     *
-     * AND 组与 OR 组各自组内同逻辑连接，组间用 OR 连接（与原 $options['where'] 语义一致）
-     */
     protected function parseWhereGroup(WhereGroup $where, array &$bind): string
     {
         if ($where->isEmpty()) {
@@ -262,13 +259,8 @@ class Builder extends BaseBuilder
         return implode(' OR ', $clauses);
     }
 
-    /**
-     * 按 value 类型分发单条条件：
-     * Raw → 原生 SQL 片段（合并自带 bind）；WhereGroup → 递归括号包裹；其余 → parseWhereItem
-     */
     protected function parseWhereCondition(WhereCondition $c, array &$bind): string
     {
-        // whereRaw 场景：field 为空，Raw 是整条 SQL 片段
         if ($c->value instanceof Raw && $c->field === '') {
             $bind = array_merge($bind, $c->value->getBind());
             return $c->value->getValue();
@@ -306,7 +298,6 @@ class Builder extends BaseBuilder
     protected function parseCompare(string $key, string $operator, mixed $value, string $field, array &$bind): string
     {
         if ($value instanceof Raw) {
-            // Raw 自带 bind（如 whereRaw 生成的 Raw 值），合并避免参数错位
             $bind = array_merge($bind, $value->getBind());
             return $key . ' ' . $operator . ' ' . $value->getValue();
         }
@@ -470,7 +461,6 @@ class Builder extends BaseBuilder
             if ($field instanceof Raw) {
                 $orders[] = $field->getValue();
             } else {
-                // 方向白名单：仅允许 ASC/DESC，其余抛异常
                 $dir = strtoupper((string)$dir);
                 if (!in_array($dir, ['ASC', 'DESC'], true)) {
                     throw new DbException("无效的排序方向: '{$dir}'，仅允许 ASC/DESC");
@@ -486,7 +476,6 @@ class Builder extends BaseBuilder
     {
         $sql = '';
         if ($limit !== null) {
-            // 负数 limit 各驱动语义不同，统一抛异常
             if ($limit < 0) {
                 throw new DbException('limit 不能为负数，当前值：' . $limit);
             }
@@ -498,9 +487,6 @@ class Builder extends BaseBuilder
         return $sql;
     }
 
-    /**
-     * 生成 UNION 段
-     */
     protected function parseUnion(array $union, array &$bind): string
     {
         if (empty($union)) {
@@ -509,7 +495,6 @@ class Builder extends BaseBuilder
 
         $sql = '';
         foreach ($union as $u) {
-            // 二次防御：即使 state 被直接写入，type 也仅接受 UNION / UNION ALL
             $type = $u['type'] ?? 'UNION';
             $type = preg_match('/^UNION( ALL)?$/i', $type) ? strtoupper($type) : null;
             if ($type === null) {
@@ -521,16 +506,11 @@ class Builder extends BaseBuilder
                 $subSql = $this->compileSelect($subState);
                 $sub = $subSql->statement;
                 if (!empty($subState->order) || !empty($subState->limit)) {
-                    // 子查询自带 ORDER/LIMIT 时用派生表包裹：UNION 后的 ORDER/LIMIT
-                    // 会被解释为整体排序分页（SQLite/MySQL/Oracle 通用）
                     $sub = 'SELECT * FROM ( ' . $sub . ' ) AS t';
                 }
                 $sql .= ' ' . $type . ' ' . $sub;
-                // 合并子查询的绑定参数，避免 UNION 子查询丢失 bind
                 $bind = array_merge($bind, $subSql->bind);
             } elseif (is_string($u['query'])) {
-                // string 分支：SQLite 不支持 UNION 分支括号（UNION (SELECT ...) 语法错），
-                // 自带 ORDER/LIMIT 时与子查询分支一致用派生表限定作用域
                 $sub = $u['query'];
                 if (preg_match('/\bORDER\s+BY\b|\bLIMIT\b/i', $sub)) {
                     $sub = 'SELECT * FROM ( ' . $sub . ' ) AS t';

@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db\Builder;
 
-use yuandian\Database\Db\Builder;
 use yuandian\Database\Db\Raw;
 
-class Oracle extends Builder
+class Oracle extends Mysql
 {
     public function wrap(string $value): string
     {

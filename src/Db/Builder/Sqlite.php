@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db\Builder;
 
-use yuandian\Database\Db\Builder;
 use yuandian\Database\Db\Raw;
 
-class Sqlite extends Builder
+class Sqlite extends Mysql
 {
     public function wrap(string $value): string
     {
