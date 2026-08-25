@@ -5,20 +5,18 @@ declare(strict_types=1);
 namespace yuandian\Database\Model;
 
 use yuandian\Database\Attribute\AutoWriteTime;
-use yuandian\Database\Attribute\Connection;
-use yuandian\Database\Attribute\SoftDelete;
 use yuandian\Database\Db\BaseQuery;
 use yuandian\Database\Enums\IdType;
-use yuandian\Database\Enums\RelationType;
 use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Facade\DB;
 use yuandian\Database\Model\Relations\Relation;
 use yuandian\Database\Model\Relations\RelationFactory;
-use yuandian\Tools\bean\BeanUtil;
 use yuandian\Tools\utils\SnowflakeUtil;
 use yuandian\Tools\utils\StrUtil;
 use yuandian\Tools\utils\UUIDUtil;
 use yuandian\Database\Model\Concern\HasEvents;
+use yuandian\Database\Model\Concern\HasMetadata;
+use yuandian\Database\Model\Concern\HasAttributes;
 
 /**
  * Class Model 模型基类
@@ -42,37 +40,56 @@ use yuandian\Database\Model\Concern\HasEvents;
 abstract class Model
 {
     use HasEvents;
-
-    // ===================== 静态缓存 =====================
-
-    /** @var array<class-string, ModelMeta> 类名→元数据值对象 */
-    protected static array $metaCache = [];
+    use HasMetadata;
+    use HasAttributes;
 
     // ===================== 实例状态 =====================
 
-    /** 是否已存在于数据库 */
     protected bool $exists = false;
-
-    /** 原始数据快照（用于 dirty 检测） */
     protected array $original = [];
-
-    /** 已加载的关联 */
     protected array $loadedRelations = [];
-
-    /** 是否已软删（水合时软删列非空即标记） */
     protected bool $softDeleted = false;
-
-    /** @var array<string, Relation> 已构建的关联实例（懒加载复用） */
+    /** @var array<string, Relation> */
     protected array $relationCache = [];
 
-    // ===================== 静态代理（链式入口）=====================
+    // ===================== 实例状态访问器 =====================
+
+    public function exists(): bool
+    {
+        return $this->exists;
+    }
+
+    public function setExists(bool $exists): static
+    {
+        $this->exists = $exists;
+        return $this;
+    }
+
+    public function isTrashed(): bool
+    {
+        return $this->softDeleted;
+    }
+
+    public function setSoftDeleted(bool $softDeleted): static
+    {
+        $this->softDeleted = $softDeleted;
+        return $this;
+    }
+
+    public function getOriginal(): array
+    {
+        return $this->original;
+    }
+
+    public function setOriginal(array $original): static
+    {
+        $this->original = $original;
+        return $this;
+    }
+
+    // ===================== 查询入口 =====================
 
     /**
-     * 显式查询入口：真实静态方法，IDE 友好（返回类型由 PHPDoc 精化）
-     *
-     * 新代码推荐 `Model::query()->where(...)->find()`；存量 `Model::where(...)` 由
-     * __callStatic 代理保持兼容。
-     *
      * @return ModelQuery<static>|MongoModelQuery<static>
      */
     public static function query(): BaseQuery
@@ -80,11 +97,6 @@ abstract class Model
         return static::newQueryForClass(static::class);
     }
 
-    /**
-     * @param string $method
-     * @param array<int, mixed> $args
-     * @return mixed
-     */
     public static function __callStatic(string $method, array $args): mixed
     {
         $query = static::query();
@@ -94,69 +106,38 @@ abstract class Model
         return $query->{$method}(...$args);
     }
 
-    /**
-     * 为指定模型类创建模型查询实例
-     *
-     * @param class-string<Model> $class
-     * @return BaseQuery
-     */
     public static function newQueryForClass(string $class): BaseQuery
     {
         $connection = Db::connect($class::getConnectionName());
-
         return $connection->createModelQuery($class);
     }
 
     // ===================== CRUD =====================
 
-    /**
-     * 保存模型（INSERT 或 UPDATE 便捷入口）
-     *
-     * 按当前状态自动路由：已存在（hydrate/insert 成功过）走 update()，否则走 insert()。
-     */
     public function save(): bool
     {
         if ($this->exists) {
             return $this->update();
         }
-
         return $this->insert();
     }
 
-    /**
-     * 强制新增语义：所有非 null 属性写入，忽略当前 exists 状态。
-     *
-     * 显式赋 null 的属性不写入（沿用数据库默认值）；成功后 exists 置 true 并同步快照。
-     */
     public function insert(): bool
     {
-        // beforeInsert 在 getInsertData 之前触发，允许回调设置 computed 属性
         if ($this->triggerEvent('beforeInsert')) {
             return false;
         }
         return $this->doInsert($this->getInsertData());
     }
 
-    /**
-     * 强制更新语义：仅写入与快照不同的字段（dirty 检测），忽略当前 exists 状态。
-     *
-     * 主键为 null 时返回 false；成功后同步快照，避免连续 save() 重复 UPDATE。
-     */
     public function update(): bool
     {
-        // beforeUpdate 在 getUpdateData 之前触发
         if ($this->triggerEvent('beforeUpdate')) {
             return false;
         }
         return $this->doUpdate($this->getUpdateData());
     }
 
-    /**
-     * 删除当前模型
-     *
-     * 委托查询层 delete()：启用软删除时写入时间戳（幂等），否则物理删除。
-     * 成功后 exists 置 false、softDeleted 置 true。
-     */
     public function delete(): bool
     {
         $pkProp = static::getPkProperty();
@@ -181,11 +162,6 @@ abstract class Model
         return $affected > 0;
     }
 
-    /**
-     * 强制删除（忽略软删除）
-     *
-     * 委托查询层 force()->delete() 物理删除；成功后 exists 置 false。
-     */
     public function forceDelete(): bool
     {
         $pkProp = static::getPkProperty();
@@ -209,11 +185,6 @@ abstract class Model
         return $affected > 0;
     }
 
-    /**
-     * 恢复当前模型（软删除恢复）
-     *
-     * 委托查询层 restore() 将软删列置回默认值；成功后 softDeleted 置 false、exists 置 true。
-     */
     public function restore(): bool
     {
         $pkProp = static::getPkProperty();
@@ -238,48 +209,8 @@ abstract class Model
         return $affected > 0;
     }
 
-    // ===================== 属性访问 =====================
-
-    /**
-     * 获取所有属性值（用于序列化 / 调试）
-     */
-    public function toArray(): array
-    {
-        $data = [];
-        $columnMap = static::getColumnMap();
-
-        foreach ($columnMap as $prop => $column) {
-            // 仅丢弃 null 与未初始化属性；空数组 []、0、'' 均保留（?? 对 uninitialized typed property 不抛错）
-            if (($this->$prop ?? null) !== null) {
-                $data[$prop] = $this->$prop;
-            }
-        }
-
-        // 已加载的关联属性（不在 columnMap 中）同样参与序列化
-        foreach (static::getMeta()->relations as $prop => $relation) {
-            if (($this->$prop ?? null) !== null) {
-                $data[$prop] = $this->$prop;
-            }
-        }
-
-        return $data;
-    }
-
-    public function toJson(): string
-    {
-        return json_encode($this->toArray(), JSON_UNESCAPED_UNICODE);
-    }
-
-    public function __toString(): string
-    {
-        return $this->toJson();
-    }
-
     // ===================== 关联 =====================
 
-    /**
-     * 预加载指定关联
-     */
     public function load(string ...$relations): static
     {
         foreach ($relations as $relation) {
@@ -290,9 +221,6 @@ abstract class Model
         return $this;
     }
 
-    /**
-     * 批量预加载时写入关联结果（标记已加载并同步到属性）
-     */
     public function setRelation(string $name, Model|array|null $result): static
     {
         $this->loadedRelations[$name] = true;
@@ -301,7 +229,6 @@ abstract class Model
             if ($result !== null) {
                 $this->$name = $result;
             } elseif ($this->isNullableProperty($name)) {
-                // 可空属性：赋 null 默认值，避免无默认值属性访问时抛 "must not be accessed before initialization"
                 $this->$name = null;
             }
         }
@@ -309,23 +236,9 @@ abstract class Model
         return $this;
     }
 
-    /**
-     * 属性是否允许 null（可空类型或无类型声明）
-     */
-    protected function isNullableProperty(string $name): bool
-    {
-        return self::getMeta()->nullable[$name] ?? false;
-    }
-
-    /**
-     * 加载关联结果
-     *
-     * @return Model|array|null 关联结果（Model[] 为 HasMany 系列；Model 为 HasOne 系列）
-     */
     protected function loadRelation(string $name): Model|array|null
     {
         if (isset($this->loadedRelations[$name])) {
-            // 已加载标记仅用于短路；load() 入口已做 isset 守卫，此处直接返回 null
             return null;
         }
 
@@ -334,14 +247,11 @@ abstract class Model
             return null;
         }
 
-        /**
-         * @var HasOne|HasMany|HasOneThrough|HasManyThrough $attr
-         */
+        /** @var HasOne|HasMany|HasOneThrough|HasManyThrough $attr */
         $attr = $info['attribute'];
 
         if (!isset($this->relationCache[$name])) {
             $this->relationCache[$name] = RelationFactory::create($this, $info['type'], $attr);
-            // 未知类型不缓存（null 无法入缓存，isset 区分不了）
             if ($this->relationCache[$name] === null) {
                 unset($this->relationCache[$name]);
                 return null;
@@ -352,7 +262,6 @@ abstract class Model
 
         $this->loadedRelations[$name] = true;
 
-        // 同步到属性（null 时仅对可空属性赋默认值，避免未初始化访问崩溃；非可空属性如 Profile 保持跳过）
         if (property_exists($this, $name)) {
             if ($result !== null) {
                 $this->$name = $result;
@@ -364,178 +273,23 @@ abstract class Model
         return $result;
     }
 
-    // ===================== 元数据 =====================
-
-
-    public static function getMeta(): ModelMeta
+    protected function isNullableProperty(string $name): bool
     {
-        $class = static::class;
-        if (!isset(self::$metaCache[$class])) {
-            self::$metaCache[$class] = ModelMetaResolver::resolve($class);
-        }
-        return self::$metaCache[$class];
-    }
-
-    public static function getTableName(): string
-    {
-        return self::getMeta()->table;
-    }
-
-    public static function getConnectionName(): ?string
-    {
-        return self::getMeta()->connection;
-    }
-
-    public static function getSoftDelete(): ?SoftDelete
-    {
-        return self::getMeta()->softDelete;
-    }
-
-    public static function getAutoWriteTime(): ?AutoWriteTime
-    {
-        return self::getMeta()->autoWriteTime;
-    }
-
-    public static function getPkProperty(): string
-    {
-        return self::getMeta()->pkProperty;
-    }
-
-    public static function getPkColumn(): string
-    {
-        return self::getMeta()->pkColumn;
-    }
-
-    public static function getPkType(): IdType
-    {
-        return self::getMeta()->pkType;
-    }
-
-    /**
-     * @return array<string, string> [propertyName => columnName]
-     */
-    public static function getColumnMap(): array
-    {
-        return self::getMeta()->fields;
-    }
-
-    /**
-     * 获取关联元数据
-     * @return array{type: RelationType, attribute: object}|null
-     */
-    public static function getRelationInfo(string $name): ?array
-    {
-        return self::getMeta()->relations[$name] ?? null;
-    }
-
-    /**
-     * 获取声明了 JsonColumn 属性的列名列表
-     * @return list<string>
-     */
-    public static function getJsonColumns(): array
-    {
-        return self::getMeta()->jsonColumns;
-    }
-
-    /**
-     * 解析模型上关联注解
-     */
-    public function setExists(bool $exists): static
-    {
-        $this->exists = $exists;
-        return $this;
-    }
-
-    public function exists(): bool
-    {
-        return $this->exists;
-    }
-
-    public function isTrashed(): bool
-    {
-        return $this->softDeleted;
-    }
-
-    public function setSoftDeleted(bool $softDeleted): static
-    {
-        $this->softDeleted = $softDeleted;
-        return $this;
-    }
-
-    /**
-     * 写入原始数据快照（dirty 检测基准，由查询层填充）
-     */
-    public function setOriginal(array $original): static
-    {
-        $this->original = $original;
-        return $this;
-    }
-
-    public function getOriginal(): array
-    {
-        return $this->original;
+        return self::getMeta()->nullable[$name] ?? false;
     }
 
     // ===================== 内部 CRUD =====================
 
     protected function doInsert(array $data): bool
     {
-        // beforeInsert 已在 insert() 中触发
+        $data = $this->resolvePkForInsert($data);
+        $this->applyAutoWriteTime($data, isInsert: true);
 
-        $pkProp = static::getPkProperty();
-        $pkColumn = static::getPkColumn();
-        $pkType = static::getPkType();
+        $id = static::query()->insert($data);
 
-        // 主键赋值策略
-        if (empty($data[$pkColumn])) {
-            $pkValue = match ($pkType) {
-                IdType::AUTO => null,   // 由数据库自增
-                IdType::ASSIGN_ID => SnowflakeUtil::nextId(),
-                IdType::ASSIGN_UUID => UUIDUtil::fastUUID(),
-            };
-
-            if ($pkValue !== null) {
-                $data[$pkColumn] = $pkValue;
-                $this->$pkProp = $pkValue;
-            } elseif ($pkType === IdType::AUTO) {
-                // AUTO：移除残留的主键 0 值，交由数据库自增（避免显式 id=0 导致二次插入 UNIQUE 冲突）
-                unset($data[$pkColumn]);
-            }
-        }
-        $autoWriteTime = static::getAutoWriteTime();
-        if ($autoWriteTime && $autoWriteTime->enabled) {
-            $now = date('Y-m-d H:i:s');
-            $createTime = $autoWriteTime->createTime;
-            if ($createTime !== false && !isset($data[$createTime])) {
-                $data[$createTime] = $now;
-                $propertyCreateTime = StrUtil::camel($createTime);
-                if (property_exists($this, $propertyCreateTime)) {
-                    $this->$propertyCreateTime = $data[$createTime];
-                }
-            }
-            $updateTime = $autoWriteTime->updateTime;
-            if ($updateTime !== false && !isset($data[$updateTime])) {
-                $data[$updateTime] = $now;
-                $propertyUpdateTime = StrUtil::camel($updateTime);
-                if (property_exists($this, $propertyUpdateTime)) {
-                    $this->$propertyUpdateTime = $data[$updateTime];
-                }
-            }
-        }
-
-
-        $query = static::query();
-        $id = $query->insert($data);
-
-        // 自增主键回填（SQL 驱动返回 int；Mongo 驱动返回字符串 ID，需兼容）
-        if ($pkType === IdType::AUTO && (int)$id > 0) {
-            $this->$pkProp = $id;
-            $data[$pkColumn] = $id; // 回填快照，保持 original 含主键
-        }
-
+        $this->backfillAutoIncrement($id);
         $this->exists = true;
         $this->original = $data;
-
         $this->triggerEvent('afterInsert');
 
         return true;
@@ -547,169 +301,93 @@ abstract class Model
             return true;
         }
 
-        // beforeUpdate 已在 update() 中触发
-
-        $pkProp = static::getPkProperty();
-        $pkVal = $this->$pkProp ?? null;
-
-        // 主键无效（null/0/''）视为未持久化的模型，拒绝 UPDATE
+        $pkVal = $this->{static::getPkProperty()} ?? null;
         if (empty($pkVal)) {
             return false;
         }
 
-        // 主键永不作为 SET 字段写入（防止 UPDATE 误改主键列）
         unset($data[static::getPkColumn()]);
         if (empty($data)) {
             return true;
         }
-        $autoWriteTime = static::getAutoWriteTime();
-        if ($autoWriteTime && $autoWriteTime->enabled && $autoWriteTime->updateTime !== false && !isset($data[$autoWriteTime->updateTime])) {
-            $updateTime = $autoWriteTime->updateTime;
-            $data[$updateTime] = date('Y-m-d H:i:s');
-            $propertyUpdateTime = StrUtil::camel($updateTime);
-            if (property_exists($this, $propertyUpdateTime)) {
-                $this->$propertyUpdateTime = $data[$updateTime];
-            }
+
+        $this->applyAutoWriteTime($data, isInsert: false);
+
+        $affected = static::query()
+            ->where(static::getPkColumn(), '=', $pkVal)
+            ->update($data);
+
+        if ($affected === 0) {
+            return false;
         }
 
-        $query = static::query();
-        $query->where(static::getPkColumn(), '=', $pkVal);
-        $query->update($data);
-
-        // 同步快照：避免连续 save() 将已写字段再次判定为 dirty，重复执行 UPDATE
         $this->original = array_merge($this->original, $data);
-
         $this->triggerEvent('afterUpdate');
 
         return true;
     }
 
-    /**
-     * 获取新增数据：所有非 null 属性（null 表示沿用数据库默认值）。
-     *
-     * 属性未赋值（保持默认值）不参与——用 property_exists 而非 isset，避免 null 被误判为未赋值。
-     */
-    protected function getInsertData(): array
+    protected function resolvePkForInsert(array $data): array
     {
-        $data = [];
-        $columnMap = static::getColumnMap();
-        $jsonColumns = static::getJsonColumns();
+        $pkColumn = static::getPkColumn();
+        $pkType = static::getPkType();
 
-        foreach ($columnMap as $prop => $column) {
-            if (!property_exists($this, $prop)) {
-                continue;
-            }
-
-            $value = $this->$prop;
-
-            // JSON 列：编码为 JSON 字符串
-            if (array_key_exists($prop, $jsonColumns)) {
-                $value = static::castToJson($value);
-            }
-
-            // 新增语义：所有非 null 属性都写入（null 表示沿用数据库默认值）
-            if ($value !== null) {
-                $data[$column] = $value;
-            }
+        if (!empty($data[$pkColumn])) {
+            return $data;
         }
+
+        $pkValue = match ($pkType) {
+            IdType::AUTO => null,
+            IdType::ASSIGN_ID => SnowflakeUtil::nextId(),
+            IdType::ASSIGN_UUID => UUIDUtil::fastUUID(),
+        };
+
+        if ($pkValue !== null) {
+            $data[$pkColumn] = $pkValue;
+            $this->{static::getPkProperty()} = $pkValue;
+        } elseif ($pkType === IdType::AUTO) {
+            unset($data[$pkColumn]);
+        }
+
         return $data;
     }
 
-    /**
-     * 获取更新数据：仅返回与快照不同的字段（dirty 检测）。
-     *
-     * null 语义：显式赋 null 的属性参与 dirty 比较（快照非 null → 写入 NULL 清空字段）；
-     * 属性未赋值（保持默认值）不参与——用 property_exists 而非 isset，避免 null 被误判为未赋值。
-     */
-    protected function getUpdateData(): array
+    protected function applyAutoWriteTime(array &$data, bool $isInsert): void
     {
-        $data = [];
-        $columnMap = static::getColumnMap();
-        $jsonColumns = static::getJsonColumns();
-
-        foreach ($columnMap as $prop => $column) {
-            if (!property_exists($this, $prop)) {
-                continue;
-            }
-
-            $value = $this->$prop;
-
-            // JSON 列：编码为 JSON 字符串
-            if (array_key_exists($prop, $jsonColumns)) {
-                $value = static::castToJson($value);
-            }
-
-            // 更新语义：仅写入变更的属性（null 参与比较，显式赋 null 会写入）
-            if (($this->original[$column] ?? null) !== $value) {
-                $data[$column] = $value;
-            }
+        $autoWriteTime = static::getAutoWriteTime();
+        if (!$autoWriteTime || !$autoWriteTime->enabled) {
+            return;
         }
-        return $data;
+
+        $now = date('Y-m-d H:i:s');
+
+        if ($isInsert && $autoWriteTime->createTime !== false && !isset($data[$autoWriteTime->createTime])) {
+            $data[$autoWriteTime->createTime] = $now;
+            $this->syncPropertyFromColumn($autoWriteTime->createTime, $now);
+        }
+
+        if ($autoWriteTime->updateTime !== false && !isset($data[$autoWriteTime->updateTime])) {
+            $data[$autoWriteTime->updateTime] = $now;
+            $this->syncPropertyFromColumn($autoWriteTime->updateTime, $now);
+        }
     }
 
-    /**
-     * 将 PHP 值序列化为 JSON 字符串（用于写入数据库）
-     */
-    public static function castToJson(mixed $value): ?string
+    protected function syncPropertyFromColumn(string $column, mixed $value): void
     {
-        if ($value === null) {
-            return null;
+        $property = StrUtil::camel($column);
+        if (property_exists($this, $property)) {
+            $this->$property = $value;
         }
-
-        // 已经是 JSON 字符串
-        if (is_string($value)) {
-            json_decode($value);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                return $value;
-            }
-        }
-
-        // JsonSerializable 接口
-        if ($value instanceof \JsonSerializable) {
-            return json_encode($value->jsonSerialize(), JSON_UNESCAPED_UNICODE);
-        }
-
-        // 普通对象 → 转数组后编码
-        if (is_object($value)) {
-            return json_encode(BeanUtil::objectToArray($value));
-        }
-
-        return json_encode($value, JSON_UNESCAPED_UNICODE);
     }
 
-    /**
-     * 将数据库值反序列化为 PHP 值
-     *
-     * @param mixed $value 数据库原始值（string / array / null）
-     * @param class-string<Object>|null $castTo 目标类名，null → 原生数组
-     * @return array|object|null 反序列化结果
-     */
-    public static function castFromJson(mixed $value, ?string $castTo): array|object|null
+    protected function backfillAutoIncrement(int|string $id): void
     {
-        if (empty($value)) {
-            return $castTo !== null ? null : [];
+        if (static::getPkType() === IdType::AUTO && (int)$id > 0) {
+            $this->{static::getPkProperty()} = $id;
         }
-        if (is_string($value)) {
-            $value = json_decode($value, true);
-        }
-        if (is_object($value)) {
-            $value = $value instanceof \stdClass ? (array)$value : BeanUtil::objectToArray($value);
-        }
-        // 无目标类型 → 返回原生数组
-        if ($castTo === null) {
-            return $value;
-        }
-
-        // 空数组
-        if (empty($value)) {
-            return [];
-        }
-
-        // 判断是对象列表还是单个对象
-        $isList = array_is_list($value) && is_array($value[0]);
-
-        return $isList ? BeanUtil::arrayToObjectList($value, $castTo) : BeanUtil::arrayToObject($value, $castTo);
     }
+
+    // ===================== 调试 =====================
 
     public function __debugInfo(): array
     {
