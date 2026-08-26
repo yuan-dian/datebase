@@ -7,6 +7,7 @@ namespace yuandian\Database\Model;
 use yuandian\Database\Attribute\AutoWriteTime;
 use yuandian\Database\Attribute\Cast;
 use yuandian\Database\Attribute\SoftDelete;
+use yuandian\Database\Cast\Caster;
 use yuandian\Database\Enums\IdType;
 use yuandian\Database\Enums\RelationType;
 
@@ -25,6 +26,7 @@ final class ModelMeta
      * @param array<string, Cast|string> $propertyTypes 属性名→类型信息（#[Cast] 实例或 PHP 类型名）
      * @param array<string, bool> $nullable 属性名→是否可空
      * @param list<string> $eventMethods 模型上已声明的事件方法名
+     * @param array<string, Caster> $casters 属性名→Caster 实例（解析阶段预构建，避免热路径重复调用）
      */
     public function __construct(
         public readonly string $table,
@@ -39,6 +41,7 @@ final class ModelMeta
         public readonly array $propertyTypes = [],
         public readonly array $nullable = [],
         public readonly array $eventMethods = [],
+        public readonly array $casters = [],
     ) {
     }
 }

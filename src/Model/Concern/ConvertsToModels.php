@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Concern;
 
-use yuandian\Database\Cast\CasterRegistry;
 use yuandian\Database\Model\Model;
 use yuandian\Database\Model\ModelMeta;
 use yuandian\Tools\utils\StrUtil;
@@ -22,7 +21,6 @@ trait ConvertsToModels
             foreach ($modelClass::getColumnMap() as $prop => $col) {
                 $map[$col] = $prop;
                 $map[strtolower($col)] = $prop;
-                // 预计算 camelCase 兜底：如 'test_user_id' → 'testUserId'
                 $camel = StrUtil::camel($col);
                 if (!isset($map[$camel])) {
                     $map[$camel] = $prop;
@@ -36,7 +34,7 @@ trait ConvertsToModels
 
     protected function toModel(array $row): Model
     {
-        /** @var class-string<Model> */
+        /** @var class-string<Model> $modelClass */
         $modelClass = $this->modelClass;
         $meta = $modelClass::getMeta();
 
@@ -60,7 +58,6 @@ trait ConvertsToModels
             return [];
         }
 
-        /** @var class-string<Model> */
         $modelClass = $this->modelClass;
         $meta = $modelClass::getMeta();
         $reverseMap = $this->getReverseColumnMap($modelClass);
@@ -86,9 +83,8 @@ trait ConvertsToModels
         $model = new $modelClass();
         $model->setExists(true);
 
-        $propertyTypes = $meta->propertyTypes;
-
         $original = [];
+        $casters = $meta->casters;
         foreach ($row as $column => $value) {
             $propName = $reverseMap[$column] ?? null;
             if ($propName === null) {
@@ -97,14 +93,11 @@ trait ConvertsToModels
 
             $original[$column] = $value;
 
-            $typeInfo = $propertyTypes[$propName] ?? null;
-            if ($typeInfo !== null) {
-                $caster = CasterRegistry::resolve($typeInfo);
-                $value = $caster->fromDb($value);
-            }
+            $caster = $casters[$propName] ?? null;
+            $resolved = $caster !== null ? $caster->fromDb($value) : $value;
 
-            if ($value !== null) {
-                $model->$propName = $value;
+            if ($resolved !== null) {
+                $model->$propName = $resolved;
             }
         }
         $model->setOriginal($original);

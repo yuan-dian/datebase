@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Concern;
 
-use yuandian\Database\Cast\CasterRegistry;
-
 trait HasAttributes
 {
     public function toArray(): array
@@ -42,7 +40,7 @@ trait HasAttributes
     {
         $data = [];
         $columnMap = static::getColumnMap();
-        $propertyTypes = static::getPropertyTypes();
+        $casters = static::getMeta()->casters;
 
         foreach ($columnMap as $prop => $column) {
             if (!property_exists($this, $prop)) {
@@ -51,19 +49,16 @@ trait HasAttributes
 
             $value = $this->$prop;
 
-            $typeInfo = $propertyTypes[$prop] ?? null;
-            if ($typeInfo !== null) {
-                $caster = CasterRegistry::resolve($typeInfo);
-                $value = $caster->toDb($value);
-            }
+            $caster = $casters[$prop] ?? null;
+            $resolved = $caster !== null ? $caster->toDb($value) : $value;
 
             if ($dirtyOnly) {
-                if (($this->original[$column] ?? null) !== $value) {
-                    $data[$column] = $value;
+                if (($this->original[$column] ?? null) !== $resolved) {
+                    $data[$column] = $resolved;
                 }
             } else {
-                if ($value !== null) {
-                    $data[$column] = $value;
+                if ($resolved !== null) {
+                    $data[$column] = $resolved;
                 }
             }
         }

@@ -16,6 +16,7 @@ use yuandian\Database\Attribute\BelongsToMany;
 use yuandian\Database\Attribute\SoftDelete;
 use yuandian\Database\Attribute\Table;
 use yuandian\Database\Attribute\TableId;
+use yuandian\Database\Cast\CasterRegistry;
 use yuandian\Database\Enums\IdType;
 use yuandian\Database\Enums\RelationType;
 use yuandian\Tools\reflection\ClassReflector;
@@ -104,6 +105,12 @@ class ModelMetaResolver
             }
         }
 
+        // 预解析 Caster 实例：元数据阶段一次性构建，避免热路径重复调用 CasterRegistry::resolve()
+        $casters = [];
+        foreach ($propertyTypes as $propName => $typeInfo) {
+            $casters[$propName] = CasterRegistry::resolve($typeInfo);
+        }
+
         return new ModelMeta(
             $tableName,
             $connectionName,
@@ -117,6 +124,7 @@ class ModelMetaResolver
             $propertyTypes,
             $nullable,
             $eventMethods,
+            $casters,
         );
     }
 

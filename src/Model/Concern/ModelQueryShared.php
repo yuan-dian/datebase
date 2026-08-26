@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace yuandian\Database\Model\Concern;
 
 use yuandian\Database\Db\BaseQuery;
+use yuandian\Database\Model\Model;
 
 /**
  * ModelQuery 共享方法：PDO 侧 ModelQuery 与 Mongo 侧 MongoModelQuery 共用。
@@ -14,7 +15,7 @@ use yuandian\Database\Db\BaseQuery;
  */
 trait ModelQueryShared
 {
-    /** @var class-string */
+    /** @var class-string<Model> */
     protected string $modelClass;
 
     /** @return class-string */
