@@ -7,7 +7,8 @@
 - 🚀 注解驱动的模型定义（PHP 8.1 Attributes）
 - 🔌 多数据库支持：MySQL、SQLite、MongoDB、Oracle
 - 🔗 关联关系：HasOne、HasMany、BelongsTo、BelongsToMany、HasOneThrough、HasManyThrough
-- 🗑️ 软删除支持
+- 🗑️ 软删除支持（支持自定义默认值与删除值）
+- 🌐 全局作用域（自动注入查询约束）
 - ⏰ 自动时间戳（create_time / update_time）
 - 🎲 雪花 ID / UUID 生成
 - 🔄 类型转换（#[Cast] 注解 + CasterRegistry）
@@ -159,6 +160,35 @@ DB::transaction(function () {
 });
 ```
 
+### 全局作用域
+
+```php
+use yuandian\Database\Scope\Scope;
+use yuandian\Database\Db\BaseQuery;
+
+// 定义作用域
+class ActiveScope implements Scope
+{
+    public function apply(BaseQuery $query, string $modelClass): void
+    {
+        $query->where('status', '=', 'active');
+    }
+}
+
+// 注册
+class User extends Model
+{
+    protected static function registerScopes(): void
+    {
+        static::addGlobalScope(ActiveScope::class);
+    }
+}
+
+// 查询时跳过
+$users = User::withoutGlobalScope(ActiveScope::class)->select();
+$users = User::withoutGlobalScopes()->select();
+```
+
 ## 测试
 
 ```bash
@@ -192,6 +222,9 @@ src/
 ├── Model/
 │   ├── Model.php       # 基础模型
 │   └── Relations/      # 关联关系实现
+├── Scope/
+│   ├── Scope.php       # 全局作用域接口
+│   └── SoftDeleteScope.php  # 内置软删作用域
 └── DbManager.php       # 连接管理器
 ```
 

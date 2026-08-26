@@ -44,9 +44,15 @@
 - [JSON 列](#json-列)
 - [软删除](#软删除)
     - [基本用法](#基本用法)
-    - [继承 BaseModel](#继承-basemodel)
     - [自定义列名](#自定义列名)
+    - [布尔/枚举列（0/1 软删除）](#布尔枚举列01-软删除)
+    - [继承 BaseModel](#继承-basemodel)
     - [禁用软删除](#禁用软删除)
+    - [查询方法](#查询方法)
+- [全局作用域](#全局作用域)
+    - [定义作用域](#定义作用域)
+    - [注册全局作用域](#注册全局作用域)
+    - [运行时注册/移除](#运行时注册移除)
 - [自动时间戳](#自动时间戳)
     - [使用方法](#使用方法)
 - [事务管理](#事务管理)
@@ -687,7 +693,7 @@ echo $product->options->color; // red
 use yuandian\Database\Attribute\SoftDelete;
 
 #[Table('article')]
-#[SoftDelete] // 默认列名: deleted_time
+#[SoftDelete] // 默认列名: deleted_time, 默认值: null
 class Article extends Model
 {
     #[TableId(IdType::AUTO)]
@@ -695,17 +701,40 @@ class Article extends Model
     public string $title = '';
     public string $content = '';
 }
-
 ```
 
 ### 自定义列名
 
 ```php
-#[SoftDelete('deleted_at')]
+#[SoftDelete(column: 'deleted_at')]
 class Article extends Model
 {
 }
 ```
+
+### 布尔/枚举列（0/1 软删除）
+
+使用 `default` 指定"未删除"值，`deletedValue` 指定"已删除"值：
+
+```php
+#[SoftDelete(column: 'is_deleted', default: 0, deletedValue: 1)]
+class Article extends Model
+{
+}
+
+// 也可以用字符串
+#[SoftDelete(column: 'is_deleted', default: '0', deletedValue: '1')]
+class Article extends Model
+{
+}
+```
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `column` | `string` | `deleted_time` | 软删除列名 |
+| `default` | `string\|int\|null` | `null` | "未删除"值（null = IS NULL） |
+| `deletedValue` | `string\|int\|null` | `null` | "已删除"值（null = 自动生成时间戳） |
+| `enabled` | `bool` | `true` | 是否启用软删除 |
 
 ### 继承 BaseModel
 
@@ -737,6 +766,76 @@ class Article extends BaseModel   // 自动继承 #[SoftDelete]
 class Article extends Model
 {
 }
+```
+
+### 查询方法
+
+```php
+// 默认查询（排除已删除行）
+$articles = Article::select();
+
+// 包含已删除行
+$articles = Article::withTrashed()->select();
+
+// 仅已删除行
+$articles = Article::onlyTrashed()->select();
+
+// 跳过指定全局作用域
+$articles = Article::withoutGlobalScope(SoftDeleteScope::class)->select();
+```
+
+## 全局作用域
+
+全局作用域为查询自动注入约束条件。软删除是内置的全局作用域，你也可以注册自定义作用域。
+
+### 定义作用域
+
+实现 `Scope` 接口：
+
+```php
+use yuandian\Database\Scope\Scope;
+use yuandian\Database\Db\BaseQuery;
+
+class ActiveScope implements Scope
+{
+    public function apply(BaseQuery $query, string $modelClass): void
+    {
+        $query->where('status', '=', 'active');
+    }
+}
+```
+
+### 注册全局作用域
+
+在模型的 `registerScopes()` 方法中注册（元数据解析时自动调用一次）：
+
+```php
+class User extends Model
+{
+    protected static function registerScopes(): void
+    {
+        static::addGlobalScope(ActiveScope::class);
+    }
+}
+```
+
+### 运行时注册/移除
+
+```php
+// 动态添加
+User::addGlobalScope(AgeScope::class);
+
+// 移除（后续查询不再应用）
+User::removeGlobalScope(AgeScope::class);
+
+// 查询时跳过指定作用域
+$users = User::withoutGlobalScope(ActiveScope::class)->select();
+
+// 查询时跳过所有作用域
+$users = User::withoutGlobalScopes()->select();
+
+// 获取已注册的作用域
+$scopes = User::getGlobalScopes();
 ```
 
 ## 自动时间戳
