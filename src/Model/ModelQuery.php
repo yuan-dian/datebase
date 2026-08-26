@@ -44,8 +44,6 @@ class ModelQuery extends Query
      */
     public function find(): ?Model
     {
-        $this->applyGlobalScopes();
-
         $result = parent::find();
 
         if ($result === null) {
@@ -66,8 +64,6 @@ class ModelQuery extends Query
      */
     public function select(): array
     {
-        $this->applyGlobalScopes();
-
         $rows = parent::select();
 
         $models = $this->toModels($rows);
@@ -91,8 +87,6 @@ class ModelQuery extends Query
 
     public function update(array $data): int
     {
-        $this->applyGlobalScopes();
-
         return parent::update($data);
     }
 }

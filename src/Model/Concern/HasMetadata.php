@@ -27,6 +27,7 @@ trait HasMetadata
         $class = static::class;
         if (!isset(self::$metaCache[$class])) {
             self::$metaCache[$class] = ModelMetaResolver::resolve($class);
+            static::registerScopes();
         }
         return self::$metaCache[$class];
     }

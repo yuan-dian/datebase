@@ -11,6 +11,7 @@ use yuandian\Database\Exceptions\DbException;
 use yuandian\Database\Facade\DB;
 use yuandian\Database\Model\Relations\Relation;
 use yuandian\Database\Model\Relations\RelationFactory;
+use yuandian\Database\Scope\Scope;
 use yuandian\Tools\utils\SnowflakeUtil;
 use yuandian\Tools\utils\StrUtil;
 use yuandian\Tools\utils\UUIDUtil;
@@ -85,6 +86,37 @@ abstract class Model
     {
         $this->original = $original;
         return $this;
+    }
+
+    // ===================== 全局作用域 =====================
+
+    /** @var array<class-string, array<class-string, Scope>> */
+    protected static array $globalScopes = [];
+
+    /**
+     * @param class-string<Scope> $scopeClass
+     */
+    public static function addGlobalScope(string $scopeClass): void
+    {
+        static::$globalScopes[static::class][$scopeClass] = new $scopeClass();
+    }
+
+    /**
+     * @param class-string $scopeClass
+     */
+    public static function removeGlobalScope(string $scopeClass): void
+    {
+        unset(static::$globalScopes[static::class][$scopeClass]);
+    }
+
+    /** @return array<class-string, Scope> */
+    public static function getGlobalScopes(): array
+    {
+        return static::$globalScopes[static::class] ?? [];
+    }
+
+    protected static function registerScopes(): void
+    {
     }
 
     // ===================== 查询入口 =====================

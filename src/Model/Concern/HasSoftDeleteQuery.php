@@ -6,30 +6,10 @@ namespace yuandian\Database\Model\Concern;
 
 use yuandian\Database\Db\Expression\WhereCondition;
 
-/**
- * 模型层软删除查询能力：全局作用域过滤、软删/物理删、强制删除。
- *
- * 软删除是模型层语义（Db 层无此概念）：本 trait 是软删逻辑的唯一归属。
- * 使用该 trait 的宿主类必须声明 protected string $modelClass 属性（模型类名）。
- *
- * 职责：
- *  - applyGlobalScopes()：查询时统一注入软删过滤（whereNull，PDO/Mongo 同构）
- *  - delete()：软删（幂等更新时间戳列）/ 物理删（force() 或模型未启用软删）
- *  - restore()：批量恢复已删行
- *  - withTrashed()/onlyTrashed()：含已删/仅已删查询
- *  - force()：标记物理删除
- *
- * @date 2026/8/20
- * @author 原点 467490186@qq.com
- */
 trait HasSoftDeleteQuery
 {
-    /** @var bool 是否强制物理删除（force() 设置） */
     protected bool $forceDelete = false;
 
-    /**
-     * 标记物理删除：delete() 时跳过软删语义，直接删除物理行。
-     */
     public function force(): static
     {
         $this->forceDelete = true;
@@ -37,13 +17,6 @@ trait HasSoftDeleteQuery
         return $this;
     }
 
-    /**
-     * 删除：软删（默认）或物理删（force() 或模型未启用软删）。
-     *
-     * 删除动作一律临时移除软删作用域（自身过滤不参与删除匹配）：
-     *  - 软删：更新时间戳列——幂等，已删行重复删除仍返回 1
-     *  - 物理删：parent::delete() 命中全部匹配行（含已软删行）
-     */
     public function delete(): int
     {
         $softDelete = $this->modelClass::getSoftDelete();
@@ -56,15 +29,12 @@ trait HasSoftDeleteQuery
                 return parent::delete();
             }
 
-            return $this->update([$softDelete->column => $this->softDeleteTimestamp()]);
+            return $this->update([$softDelete->column => $softDelete->deletedValue ?? $this->softDeleteTimestamp()]);
         } finally {
             $this->removedScopes = $savedRemoved;
         }
     }
 
-    /**
-     * 恢复：批量恢复已删行（软删列置回默认值，默认 null 即未删）。
-     */
     public function restore(): int
     {
         $softDelete = $this->modelClass::getSoftDelete();
@@ -81,30 +51,33 @@ trait HasSoftDeleteQuery
         }
     }
 
-    /**
-     * 查询含已删行：跳过软删过滤。
-     */
     public function withTrashed(): static
     {
         return $this->withoutGlobalScope('softDelete');
     }
 
     /**
-     * 仅查已删行：跳过软删过滤并限定软删列非空。
+     * 仅查已删行：跳过软删过滤并限定软删列 ≠ $default。
      */
     public function onlyTrashed(): static
     {
         $softDelete = $this->modelClass::getSoftDelete();
         $column = $softDelete?->column ?? 'deleted_time';
+        $default = $softDelete?->default;
 
-        return $this->withTrashed()->whereNotNull($column);
+        $query = $this->withTrashed();
+
+        if ($default === null) {
+            return $query->whereNotNull($column);
+        }
+
+        return $query->where($column, '<>', $default);
     }
 
     /**
-     * 全局作用域：注入软删过滤（默认查询排除已删行）。
+     * 全局作用域：遍历注册的 Scope + 软删除过滤。
      *
-     * 由 Db 层终端方法（Query/MongoQuery 的 find/select/update/delete 等）动态派发调用，
-     * 每次操作恰好一次；宿主类无需（也不应）重复调用。
+     * 由 Db 层终端方法（Query::find/select/update/delete）统一调用一次。
      */
     protected function applyGlobalScopes(): void
     {
@@ -112,20 +85,33 @@ trait HasSoftDeleteQuery
             return;
         }
 
-        $softDelete = $this->modelClass::getSoftDelete();
-        if (!$softDelete || !$softDelete->active() || in_array('softDelete', $this->removedScopes, true)) {
-            return;
+        $globalScopes = $this->modelClass::getGlobalScopes();
+        foreach ($globalScopes as $identifier => $scope) {
+            if (in_array($identifier, $this->removedScopes, true)) {
+                continue;
+            }
+            $scope->apply($this, $this->modelClass);
         }
 
-        // 幂等：软删过滤可能被宿主覆写方法与 Query 父类双重触发，已注入则跳过
-        if (!$this->state->where->hasCondition($softDelete->column, 'NULL')) {
-            $this->state->where->add('AND', new WhereCondition($softDelete->column, 'NULL', ''));
+        if (!in_array('softDelete', $this->removedScopes, true)) {
+            $softDelete = $this->modelClass::getSoftDelete();
+            if ($softDelete && $softDelete->active()) {
+                $column = $softDelete->column;
+                $default = $softDelete->default;
+
+                if ($default === null) {
+                    if (!$this->state->where->hasCondition($column, 'NULL')) {
+                        $this->state->where->add('AND', new WhereCondition($column, 'NULL', ''));
+                    }
+                } else {
+                    if (!$this->state->where->hasCondition($column, '=', $default)) {
+                        $this->state->where->add('AND', new WhereCondition($column, '=', $default));
+                    }
+                }
+            }
         }
     }
 
-    /**
-     * 软删时间戳：按软删列默认值类型生成（int 列→秒级时间戳，其他→日期时间字符串）。
-     */
     protected function softDeleteTimestamp(): int|string
     {
         $softDelete = $this->modelClass::getSoftDelete();

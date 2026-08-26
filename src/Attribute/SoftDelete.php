@@ -21,7 +21,8 @@ class SoftDelete
     public function __construct(
         public readonly string $column = 'deleted_time',
         public readonly bool $enabled = true,
-        public readonly ?string $default = null,
+        public readonly string|int|null $default = null,
+        public readonly string|int|null $deletedValue = null,
     ) {
     }
 
