@@ -70,10 +70,7 @@ class ModelQuery extends Query
 
         $rows = parent::select();
 
-        $models = [];
-        foreach ($rows as $row) {
-            $models[] = $this->toModel($row);
-        }
+        $models = $this->toModels($rows);
 
         if (!empty($this->withRelations) && !empty($models)) {
             $this->eagerLoadRelations($models, $this->withRelations);

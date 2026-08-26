@@ -84,11 +84,10 @@ trait HasMetadata
     }
 
     /**
-     * 获取声明了 JsonColumn 属性的列名列表
-     * @return list<string>
+     * @return array<string, \yuandian\Database\Attribute\Cast>
      */
-    public static function getJsonColumns(): array
+    public static function getPropertyTypes(): array
     {
-        return self::getMeta()->jsonColumns;
+        return self::getMeta()->propertyTypes;
     }
 }

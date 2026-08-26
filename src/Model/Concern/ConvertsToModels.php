@@ -4,28 +4,17 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Concern;
 
+use yuandian\Database\Cast\CasterRegistry;
 use yuandian\Database\Model\Model;
+use yuandian\Database\Model\ModelMeta;
 use yuandian\Tools\utils\StrUtil;
 
-/**
- * 模型转换能力：将数据库行数据转换为模型实例。
- *
- * 使用该 trait 的宿主类必须声明 protected string $modelClass 属性（模型类名）。
- *
- * @date 2026/5/7 上午11:07
- * @author 原点 467490186@qq.com
- */
 trait ConvertsToModels
 {
-    /** @var array<string, array<string, string>> 列名→属性名反向映射缓存 */
+    /** @var array<string, array<string, string>> */
     private static array $reverseMapCache = [];
 
-    /**
-     * 获取列名→属性名反向映射（静态缓存，含小写兜底键）
-     *
-     * @param class-string<Model> $modelClass
-     * @return array<string, string>
-     */
+    /** @var class-string<Model> $modelClass */
     protected function getReverseColumnMap(string $modelClass): array
     {
         if (!isset(self::$reverseMapCache[$modelClass])) {
@@ -33,6 +22,11 @@ trait ConvertsToModels
             foreach ($modelClass::getColumnMap() as $prop => $col) {
                 $map[$col] = $prop;
                 $map[strtolower($col)] = $prop;
+                // 预计算 camelCase 兜底：如 'test_user_id' → 'testUserId'
+                $camel = StrUtil::camel($col);
+                if (!isset($map[$camel])) {
+                    $map[$camel] = $prop;
+                }
             }
             self::$reverseMapCache[$modelClass] = $map;
         }
@@ -40,42 +34,77 @@ trait ConvertsToModels
         return self::$reverseMapCache[$modelClass];
     }
 
-    /**
-     * 将数据库行数据转换为模型实例
-     *
-     * @param array<string, mixed> $row 数据库行数据（键为列名）
-     */
     protected function toModel(array $row): Model
     {
+        /** @var class-string<Model> */
+        $modelClass = $this->modelClass;
+        $meta = $modelClass::getMeta();
+
+        return $this->hydrateRow(
+            $row,
+            $modelClass,
+            $meta,
+            $this->getReverseColumnMap($modelClass)
+        );
+    }
+
+    /**
+     * 批量水合：元数据只获取一次，避免 O(n) 次重复调用。
+     *
+     * @param list<array> $rows
+     * @return list<Model>
+     */
+    protected function toModels(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        /** @var class-string<Model> */
+        $modelClass = $this->modelClass;
+        $meta = $modelClass::getMeta();
+        $reverseMap = $this->getReverseColumnMap($modelClass);
+
+        $models = [];
+        foreach ($rows as $row) {
+            $models[] = $this->hydrateRow($row, $modelClass, $meta, $reverseMap);
+        }
+
+        return $models;
+    }
+
+    /**
+     * 单行水合：列映射 → 类型转换 → 软删除标记 → afterRead 事件。
+     */
+    private function hydrateRow(
+        array $row,
+        string $modelClass,
+        ModelMeta $meta,
+        array $reverseMap
+    ): Model {
         /** @var Model $model */
-        $model = new $this->modelClass();
+        $model = new $modelClass();
         $model->setExists(true);
 
-        $meta = $model::getMeta();
-        $columnMap = $meta->fields;
-        $reverseMap = $this->getReverseColumnMap($this->modelClass);
-        $jsonColumns = $meta->jsonColumns;
+        $propertyTypes = $meta->propertyTypes;
 
         $original = [];
         foreach ($row as $column => $value) {
             $propName = $reverseMap[$column] ?? null;
             if ($propName === null) {
-                $propName = StrUtil::camel($column);
-                if (!property_exists($model, $propName)) {
-                    continue;
-                }
+                continue;
             }
-            $isJson = array_key_exists($propName, $jsonColumns);
-            if ($isJson) {
-                $value = $model::castFromJson($value, $jsonColumns[$propName]);
+
+            $original[$column] = $value;
+
+            $typeInfo = $propertyTypes[$propName] ?? null;
+            if ($typeInfo !== null) {
+                $caster = CasterRegistry::resolve($typeInfo);
+                $value = $caster->fromDb($value);
             }
 
             if ($value !== null) {
                 $model->$propName = $value;
-            }
-
-            if (isset($model->$propName)) {
-                $original[$column] = $isJson ? $model::castToJson($model->$propName) : $model->$propName;
             }
         }
         $model->setOriginal($original);

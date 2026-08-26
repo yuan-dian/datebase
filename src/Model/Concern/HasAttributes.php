@@ -4,14 +4,8 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Model\Concern;
 
-use yuandian\Tools\bean\BeanUtil;
+use yuandian\Database\Cast\CasterRegistry;
 
-/**
- * 模型属性访问与序列化：toArray/toJson、JSON 编解码、脏数据构建。
- *
- * @date 2026/8/24
- * @author 原点 <467490186@qq.com>
- */
 trait HasAttributes
 {
     public function toArray(): array
@@ -44,64 +38,11 @@ trait HasAttributes
         return $this->toJson();
     }
 
-    public static function castToJson(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if (is_string($value)) {
-            json_decode($value);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                return $value;
-            }
-        }
-
-        if ($value instanceof \JsonSerializable) {
-            return json_encode($value->jsonSerialize(), JSON_UNESCAPED_UNICODE);
-        }
-
-        if (is_object($value)) {
-            return json_encode(BeanUtil::objectToArray($value));
-        }
-
-        return json_encode($value, JSON_UNESCAPED_UNICODE);
-    }
-
-    /**
-     * @param mixed $value 数据库原始值（string / array / null）
-     * @param class-string<Object>|null $castTo 目标类名，null → 原生数组
-     * @return array|object|null 反序列化结果
-     */
-    public static function castFromJson(mixed $value, ?string $castTo): array|object|null
-    {
-        if (empty($value)) {
-            return $castTo !== null ? null : [];
-        }
-        if (is_string($value)) {
-            $value = json_decode($value, true);
-        }
-        if (is_object($value)) {
-            $value = $value instanceof \stdClass ? (array)$value : BeanUtil::objectToArray($value);
-        }
-        if ($castTo === null) {
-            return $value;
-        }
-
-        if (empty($value)) {
-            return [];
-        }
-
-        $isList = is_array($value) && array_is_list($value) && !empty($value) && is_array($value[0]);
-
-        return $isList ? BeanUtil::arrayToObjectList($value, $castTo) : BeanUtil::arrayToObject($value, $castTo);
-    }
-
     protected function buildDataForSave(bool $dirtyOnly = false): array
     {
         $data = [];
         $columnMap = static::getColumnMap();
-        $jsonColumns = static::getJsonColumns();
+        $propertyTypes = static::getPropertyTypes();
 
         foreach ($columnMap as $prop => $column) {
             if (!property_exists($this, $prop)) {
@@ -110,8 +51,10 @@ trait HasAttributes
 
             $value = $this->$prop;
 
-            if (array_key_exists($prop, $jsonColumns)) {
-                $value = static::castToJson($value);
+            $typeInfo = $propertyTypes[$prop] ?? null;
+            if ($typeInfo !== null) {
+                $caster = CasterRegistry::resolve($typeInfo);
+                $value = $caster->toDb($value);
             }
 
             if ($dirtyOnly) {

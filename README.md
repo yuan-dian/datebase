@@ -234,7 +234,8 @@ $user->userName = '李四';
 $user->save();
 ```
 
-`update()` 基于快照做脏数据检测：仅写入与快照不同的字段（显式赋 `null` 会写入 NULL 清空字段），未改动的字段不产生 UPDATE；更新成功后同步快照，连续调用 `save()` 不会重复执行 UPDATE。
+`update()` 基于快照做脏数据检测：仅写入与快照不同的字段（显式赋 `null` 会写入 NULL 清空字段），未改动的字段不产生
+UPDATE；更新成功后同步快照，连续调用 `save()` 不会重复执行 UPDATE。
 
 ### 删除
 
@@ -249,7 +250,8 @@ User::whereEqual('id', 1)->delete();
 
 ## Db 层独立使用（Query Builder）
 
-Db 层与模型层分层设计：**Db 层仅依赖数据表名，返回原生数组，不感知模型**；模型层是 Db 层的包装，负责水合（行转模型）、软删除、全局作用域与关联预加载。不使用模型时，可直接通过 `DB::table()` 操作数据表：
+Db 层与模型层分层设计：**Db 层仅依赖数据表名，返回原生数组，不感知模型**；模型层是 Db
+层的包装，负责水合（行转模型）、软删除、全局作用域与关联预加载。不使用模型时，可直接通过 `DB::table()` 操作数据表：
 
 ```php
 use yuandian\Database\Facade\DB;
@@ -458,14 +460,14 @@ class UserTag extends Model
 }
 ```
 
-| 参数            | 说明              |
-|---------------|-----------------|
-| `model`       | 目标关联模型          |
-| `through`     | 中间表模型           |
-| `foreignKey`  | 中间表 → 当前模型的外键    |
-| `relatedKey`  | 中间表 → 目标模型的外键    |
-| `localKey`    | 当前模型的本地键（默认 `id`） |
-| `relatedPivotKey` | 中间表的主键（默认 `id`） |
+| 参数                | 说明                |
+|-------------------|-------------------|
+| `model`           | 目标关联模型            |
+| `through`         | 中间表模型             |
+| `foreignKey`      | 中间表 → 当前模型的外键     |
+| `relatedKey`      | 中间表 → 目标模型的外键     |
+| `localKey`        | 当前模型的本地键（默认 `id`） |
+| `relatedPivotKey` | 中间表的主键（默认 `id`）   |
 
 ### 远程一对一 HasOneThrough
 
@@ -563,19 +565,19 @@ $book->load('chapters', 'isbn');
 
 ### 事件列表
 
-| 事件                | 触发时机       | 可阻止 |
-|-------------------|-----------|-----|
-| `beforeInsert`    | INSERT 前   | ✅  |
-| `afterInsert`     | INSERT 后   | ❌  |
-| `beforeUpdate`    | UPDATE 前   | ✅  |
-| `afterUpdate`     | UPDATE 后   | ❌  |
-| `beforeDelete`    | DELETE 前   | ✅  |
-| `afterDelete`     | DELETE 后   | ❌  |
-| `beforeForceDelete` | 强制删除前     | ✅  |
-| `afterForceDelete`  | 强制删除后     | ❌  |
-| `beforeRestore`   | 恢复前       | ✅  |
-| `afterRestore`    | 恢复后       | ❌  |
-| `afterRead`       | 查询水合每行后    | ❌  |
+| 事件                  | 触发时机     | 可阻止 |
+|---------------------|----------|-----|
+| `beforeInsert`      | INSERT 前 | ✅   |
+| `afterInsert`       | INSERT 后 | ❌   |
+| `beforeUpdate`      | UPDATE 前 | ✅   |
+| `afterUpdate`       | UPDATE 后 | ❌   |
+| `beforeDelete`      | DELETE 前 | ✅   |
+| `afterDelete`       | DELETE 后 | ❌   |
+| `beforeForceDelete` | 强制删除前    | ✅   |
+| `afterForceDelete`  | 强制删除后    | ❌   |
+| `beforeRestore`     | 恢复前      | ✅   |
+| `afterRestore`      | 恢复后      | ❌   |
+| `afterRead`         | 查询水合每行后  | ❌   |
 
 ### 模型方法方式
 
@@ -620,12 +622,14 @@ User::modelListen('afterInsert', function (User $user) {
 });
 ```
 
-## JSON 列
+## 类型转换
 
-使用 `#[JsonColumn]` 注解标记属性，写入时自动序列化为 JSON 字符串，读取时自动反序列化。
+使用 `#[Cast]` 注解标记属性，自动处理类型转换和 JSON 编解码。
 
 ```php
-use yuandian\Database\Attribute\JsonColumn;
+use yuandian\Database\Attribute\Cast;
+use yuandian\Database\Cast\JsonCaster;
+use yuandian\Database\Cast\DateTimeCaster;
 
 class Product extends Model
 {
@@ -633,29 +637,19 @@ class Product extends Model
     public int $id = 0;
     public string $name = '';
 
-    // 存储为 JSON 数组
-    #[JsonColumn]
+    // JSON 数组
+    #[Cast(JsonCaster::class)]
     public ?array $tags = null;
 
-    // 存储为 JSON，读取时自动转为类实例
-    #[JsonColumn(ProductOptions::class)]
+    // JSON → 对象
+    #[Cast(JsonCaster::class, castTo: ProductOptions::class)]
     public ?ProductOptions $options = null;
+
+    // 日期格式
+    #[Cast(DateTimeCaster::class, format: 'Y/m/d')]
+    public ?string $birthday = null;
 }
 
-class ProductOptions implements \JsonSerializable
-{
-    public function __construct(
-        public string $color = '',
-        public int $size = 0,
-    ) {}
-
-    public function jsonSerialize(): array
-    {
-        return ['color' => $this->color, 'size' => $this->size];
-    }
-}
-
-// 使用
 $product = new Product();
 $product->name = 'T恤';
 $product->tags = ['cotton', 'summer'];
@@ -667,10 +661,21 @@ echo $product->tags[0];      // cotton
 echo $product->options->color; // red
 ```
 
-| 用法                     | 说明                |
-|------------------------|-------------------|
-| `#[JsonColumn]`        | 属性序列化为数组          |
-| `#[JsonColumn(Cls::class)]` | 属性序列化为指定类的实例      |
+| 用法                                                | 说明                     |
+|---------------------------------------------------|------------------------|
+| `#[Cast(IntegerCaster::class)]`                   | 整数转换                   |
+| `#[Cast(FloatCaster::class)]`                     | 浮点数转换                  |
+| `#[Cast(StringCaster::class)]`                    | 字符串转换                  |
+| `#[Cast(BooleanCaster::class)]`                   | 布尔值转换                  |
+| `#[Cast(ArrayCaster::class)]`                     | 数组转换                   |
+| `#[Cast(ObjectCaster::class)]`                    | JSON → 对象（通过 BeanUtil） |
+| `#[Cast(JsonCaster::class)]`                      | JSON 数组                |
+| `#[Cast(JsonCaster::class, castTo: Cls::class)]`  | JSON → 对象              |
+| `#[Cast(DateTimeCaster::class, format: 'Y-m-d')]` | 日期格式                   |
+| `#[Cast(EnumCaster::class)]`                      | 枚举转换（BackedEnum）       |
+
+> 💡 **自动推断**：未显式指定 `#[Cast]` 时，框架根据属性类型自动选择 Caster（`int`→IntegerCaster、`DateTimeImmutable`
+> →DateTimeCaster 等）
 
 ## 软删除
 
@@ -816,3 +821,7 @@ try {
     throw $e;
 }
 ```
+
+## 许可证
+
+MIT License

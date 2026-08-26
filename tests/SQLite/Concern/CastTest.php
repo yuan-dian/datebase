@@ -10,7 +10,7 @@ use yuandian\Database\Tests\Fixture\Model\JsonModel;
 use yuandian\Database\Tests\Fixture\Model\JsonCastModel;
 use yuandian\Database\Tests\Fixture\Model\ProductOptions;
 
-class JsonColumnTest extends TestCase
+class CastTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -66,7 +66,6 @@ class JsonColumnTest extends TestCase
         $model->insert();
 
         $found = JsonModel::where('id', '=', $model->id)->find();
-        // #[JsonColumn] without castTo returns [] for null/empty DB values
         $this->assertIsArray($found->settings);
         $this->assertCount(0, $found->settings);
     }

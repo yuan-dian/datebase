@@ -10,6 +10,7 @@
 - 🗑️ 软删除支持
 - ⏰ 自动时间戳（create_time / update_time）
 - 🎲 雪花 ID / UUID 生成
+- 🔄 类型转换（#[Cast] 注解 + CasterRegistry）
 - 📦 轻量级，无额外依赖
 
 ## 环境要求
@@ -173,6 +174,7 @@ php vendor/bin/phpunit --no-configuration --bootstrap tests/bootstrap.php tests/
 ```
 src/
 ├── Attribute/          # PHP 8.1 注解（Table, TableId, SoftDelete, HasOne 等）
+├── Cast/               # 类型转换器（Caster 接口 + 内置实现）
 ├── Config/
 │   └── database.php    # 默认配置
 ├── Db/

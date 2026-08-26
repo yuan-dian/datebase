@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Tests\Fixture\Model;
 
-use yuandian\Database\Attribute\JsonColumn;
+use yuandian\Database\Attribute\Cast;
 use yuandian\Database\Attribute\Table;
 use yuandian\Database\Attribute\TableId;
+use yuandian\Database\Cast\JsonCaster;
 use yuandian\Database\Enums\IdType;
 use yuandian\Database\Model\Model;
 
@@ -17,9 +18,9 @@ class JsonModel extends Model
 
     public string $name = '';
 
-    #[JsonColumn]
+    #[Cast(JsonCaster::class)]
     public ?array $settings = null;
 
-    #[JsonColumn]
+    #[Cast(JsonCaster::class)]
     public ?array $metadata = null;
 }

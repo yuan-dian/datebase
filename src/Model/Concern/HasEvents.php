@@ -92,9 +92,18 @@ trait HasEvents
      *
      * triggerEvent 是 protected，toModel 在 ModelQuery 上执行，
      * 需要公开方法供外部调用。
+     *
+     * 短路优化：无事件方法且无监听器时直接返回，避免触发事件分发。
      */
     public function triggerAfterRead(): void
     {
+        // 快速短路：无监听器时跳过事件分发
+        if (!isset(self::$globalListeners['afterRead'])
+            && !isset(self::$modelListeners[static::class]['afterRead'])
+            && static::getMeta()->eventMethods === []) {
+            return;
+        }
+
         $this->triggerEvent('afterRead');
     }
 
