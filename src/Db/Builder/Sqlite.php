@@ -8,7 +8,7 @@ use yuandian\Database\Db\Expression\Raw;
 
 class Sqlite extends Mysql
 {
-    public function wrap(string $value): string
+    public function wrap(string|Raw $value): string
     {
         if ($value === '*') {
             return $value;

@@ -20,7 +20,7 @@ use yuandian\Database\Db\Expression\WhereGroup;
 class MongoQuery extends BaseQuery
 {
     protected MongoConnection $connection;
-    protected MongoBuilder $builder;
+    protected BuilderInterface $builder;
 
     public function __construct(MongoConnection $connection, ?string $table = null)
     {
@@ -354,10 +354,10 @@ class MongoQuery extends BaseQuery
         $state = $this->state;
 
         $options = [
-            'table'      => $state->table,
-            'where'      => $state->where,
-            'data'       => $state->data,
-            'limit'      => $state->limit ?? 0,
+            'table' => $state->table,
+            'where' => $state->where,
+            'data'  => $state->data,
+            'limit' => $state->limit ?? 0,
         ];
 
         if ($state->field !== ['*']) {

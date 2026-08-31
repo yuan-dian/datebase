@@ -585,7 +585,7 @@ class Mysql extends BaseBuilder
         return $this->wrap($this->context->getTablePrefix() . $table);
     }
 
-    public function wrap(string $value): string
+    public function wrap(string|Raw $value): string
     {
         if ($value === '*') {
             return $value;

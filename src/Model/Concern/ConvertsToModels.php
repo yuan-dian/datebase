@@ -107,7 +107,7 @@ trait ConvertsToModels
             $model->setSoftDeleted(true);
         }
 
-        $model->triggerAfterRead();
+        $model->triggerAfterRead($meta);
 
         return $model;
     }

@@ -240,7 +240,7 @@ abstract class PDOConnection extends Connection
         return $pdo;
     }
 
-    public function close(): static
+    public function close(): void
     {
         $this->linkId = null;
         $this->linkWrite = null;
@@ -249,8 +249,6 @@ abstract class PDOConnection extends Connection
         $this->info = [];
         $this->transTimes = 0;
         $this->pdoStatement = null;
-
-        return $this;
     }
 
     /**
@@ -308,7 +306,8 @@ abstract class PDOConnection extends Connection
             } else {
                 if ($this->reconnectTimes < 4 && $this->isConnectionBroken($e)) {
                     $this->reconnectTimes++;
-                    return $this->close()->getPdoStatement($sql, $bind, $master);
+                    $this->close();
+                    return $this->getPdoStatement($sql, $bind, $master);
                 }
             }
             throw $e;

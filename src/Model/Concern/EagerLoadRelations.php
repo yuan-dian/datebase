@@ -69,7 +69,7 @@ trait EagerLoadRelations
         // 第二遍：批量加载所有平铺关系，收集加载出的关联模型实例（供嵌套递归）
         $loadedInstances = [];
         foreach (array_keys($flatNames) as $name) {
-            $info = $first::getRelationInfo($name);
+            $info = get_class($first)::getRelationInfo($name);
             if (!$info) {
                 continue;
             }

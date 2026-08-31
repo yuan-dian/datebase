@@ -16,7 +16,7 @@ interface ConnectionInterface
 
     public function getConfig(string $key = ''): mixed;
 
-    public function close(): mixed;
+    public function close(): void;
 
     public function transaction(callable $callback): mixed;
 

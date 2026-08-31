@@ -9,15 +9,15 @@ trait HasAttributes
     public function toArray(): array
     {
         $data = [];
-        $columnMap = static::getColumnMap();
+        $meta = static::getMeta();
 
-        foreach ($columnMap as $prop => $column) {
+        foreach ($meta->fields as $prop => $column) {
             if (($this->$prop ?? null) !== null) {
                 $data[$prop] = $this->$prop;
             }
         }
 
-        foreach (static::getMeta()->relations as $prop => $relation) {
+        foreach ($meta->relations as $prop => $relation) {
             if (($this->$prop ?? null) !== null) {
                 $data[$prop] = $this->$prop;
             }
@@ -39,8 +39,9 @@ trait HasAttributes
     protected function buildDataForSave(bool $dirtyOnly = false): array
     {
         $data = [];
-        $columnMap = static::getColumnMap();
-        $casters = static::getMeta()->casters;
+        $meta = static::getMeta();
+        $columnMap = $meta->fields;
+        $casters = $meta->casters;
 
         foreach ($columnMap as $prop => $column) {
             if (!property_exists($this, $prop)) {

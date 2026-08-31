@@ -156,39 +156,42 @@ abstract class Model
 
     public function insert(): bool
     {
-        if ($this->triggerEvent('beforeInsert')) {
+        $meta = static::getMeta();
+        if ($this->triggerEvent('beforeInsert', $meta)) {
             return false;
         }
-        return $this->doInsert($this->getInsertData());
+        return $this->doInsert($this->getInsertData(), $meta);
     }
 
     public function update(): bool
     {
-        if ($this->triggerEvent('beforeUpdate')) {
+        $meta = static::getMeta();
+        if ($this->triggerEvent('beforeUpdate', $meta)) {
             return false;
         }
-        return $this->doUpdate($this->getUpdateData());
+        return $this->doUpdate($this->getUpdateData(), $meta);
     }
 
     public function delete(): bool
     {
-        $pkProp = static::getPkProperty();
+        $meta = static::getMeta();
+        $pkProp = $meta->pkProperty;
         $pkVal = $this->$pkProp ?? null;
 
         if ($pkVal === null) {
             return false;
         }
 
-        if ($this->triggerEvent('beforeDelete')) {
+        if ($this->triggerEvent('beforeDelete', $meta)) {
             return false;
         }
 
-        $affected = static::query()->where(static::getPkColumn(), '=', $pkVal)->delete();
+        $affected = static::query()->where($meta->pkColumn, '=', $pkVal)->delete();
 
         if ($affected > 0) {
             $this->exists = false;
             $this->softDeleted = true;
-            $this->triggerEvent('afterDelete');
+            $this->triggerEvent('afterDelete', $meta);
         }
 
         return $affected > 0;
@@ -196,22 +199,23 @@ abstract class Model
 
     public function forceDelete(): bool
     {
-        $pkProp = static::getPkProperty();
+        $meta = static::getMeta();
+        $pkProp = $meta->pkProperty;
         $pkVal = $this->$pkProp ?? null;
 
         if ($pkVal === null) {
             return false;
         }
 
-        if ($this->triggerEvent('beforeForceDelete')) {
+        if ($this->triggerEvent('beforeForceDelete', $meta)) {
             return false;
         }
 
-        $affected = static::query()->force()->where(static::getPkColumn(), '=', $pkVal)->delete();
+        $affected = static::query()->force()->where($meta->pkColumn, '=', $pkVal)->delete();
 
         if ($affected > 0) {
             $this->exists = false;
-            $this->triggerEvent('afterForceDelete');
+            $this->triggerEvent('afterForceDelete', $meta);
         }
 
         return $affected > 0;
@@ -219,23 +223,24 @@ abstract class Model
 
     public function restore(): bool
     {
-        $pkProp = static::getPkProperty();
+        $meta = static::getMeta();
+        $pkProp = $meta->pkProperty;
         $pkVal = $this->$pkProp ?? null;
 
         if ($pkVal === null) {
             return false;
         }
 
-        if ($this->triggerEvent('beforeRestore')) {
+        if ($this->triggerEvent('beforeRestore', $meta)) {
             return false;
         }
 
-        $affected = static::query()->where(static::getPkColumn(), '=', $pkVal)->restore();
+        $affected = static::query()->where($meta->pkColumn, '=', $pkVal)->restore();
 
         if ($affected > 0) {
             $this->softDeleted = false;
             $this->exists = true;
-            $this->triggerEvent('afterRestore');
+            $this->triggerEvent('afterRestore', $meta);
         }
 
         return $affected > 0;
@@ -312,41 +317,41 @@ abstract class Model
 
     // ===================== 内部 CRUD =====================
 
-    protected function doInsert(array $data): bool
+    protected function doInsert(array $data, ModelMeta $meta): bool
     {
-        $data = $this->resolvePkForInsert($data);
-        $this->applyAutoWriteTime($data, isInsert: true);
+        $data = $this->resolvePkForInsert($data, $meta);
+        $this->applyAutoWriteTime($data, true, $meta);
 
         $id = static::query()->insert($data);
 
-        $this->backfillAutoIncrement($id);
+        $this->backfillAutoIncrement($id, $meta);
         $this->exists = true;
         $this->original = $data;
-        $this->triggerEvent('afterInsert');
+        $this->triggerEvent('afterInsert', $meta);
 
         return true;
     }
 
-    protected function doUpdate(array $data): bool
+    protected function doUpdate(array $data, ModelMeta $meta): bool
     {
         if (empty($data)) {
             return true;
         }
 
-        $pkVal = $this->{static::getPkProperty()} ?? null;
+        $pkVal = $this->{$meta->pkProperty} ?? null;
         if (empty($pkVal)) {
             return false;
         }
 
-        unset($data[static::getPkColumn()]);
+        unset($data[$meta->pkColumn]);
         if (empty($data)) {
             return true;
         }
 
-        $this->applyAutoWriteTime($data, isInsert: false);
+        $this->applyAutoWriteTime($data, false, $meta);
 
         $affected = static::query()
-            ->where(static::getPkColumn(), '=', $pkVal)
+            ->where($meta->pkColumn, '=', $pkVal)
             ->update($data);
 
         if ($affected === 0) {
@@ -354,15 +359,15 @@ abstract class Model
         }
 
         $this->original = array_merge($this->original, $data);
-        $this->triggerEvent('afterUpdate');
+        $this->triggerEvent('afterUpdate', $meta);
 
         return true;
     }
 
-    protected function resolvePkForInsert(array $data): array
+    protected function resolvePkForInsert(array $data, ModelMeta $meta): array
     {
-        $pkColumn = static::getPkColumn();
-        $pkType = static::getPkType();
+        $pkColumn = $meta->pkColumn;
+        $pkType = $meta->pkType;
 
         if (!empty($data[$pkColumn])) {
             return $data;
@@ -376,7 +381,7 @@ abstract class Model
 
         if ($pkValue !== null) {
             $data[$pkColumn] = $pkValue;
-            $this->{static::getPkProperty()} = $pkValue;
+            $this->{$meta->pkProperty} = $pkValue;
         } elseif ($pkType === IdType::AUTO) {
             unset($data[$pkColumn]);
         }
@@ -384,9 +389,9 @@ abstract class Model
         return $data;
     }
 
-    protected function applyAutoWriteTime(array &$data, bool $isInsert): void
+    protected function applyAutoWriteTime(array &$data, bool $isInsert, ModelMeta $meta): void
     {
-        $autoWriteTime = static::getAutoWriteTime();
+        $autoWriteTime = $meta->autoWriteTime;
         if (!$autoWriteTime || !$autoWriteTime->enabled) {
             return;
         }
@@ -412,10 +417,10 @@ abstract class Model
         }
     }
 
-    protected function backfillAutoIncrement(int|string $id): void
+    protected function backfillAutoIncrement(int|string $id, ModelMeta $meta): void
     {
-        if (static::getPkType() === IdType::AUTO && (int)$id > 0) {
-            $this->{static::getPkProperty()} = $id;
+        if ($meta->pkType === IdType::AUTO && (int)$id > 0) {
+            $this->{$meta->pkProperty} = $id;
         }
     }
 

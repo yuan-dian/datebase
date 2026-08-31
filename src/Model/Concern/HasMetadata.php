@@ -34,37 +34,37 @@ trait HasMetadata
 
     public static function getTableName(): string
     {
-        return self::getMeta()->table;
+        return static::getMeta()->table;
     }
 
     public static function getConnectionName(): ?string
     {
-        return self::getMeta()->connection;
+        return static::getMeta()->connection;
     }
 
     public static function getSoftDelete(): ?SoftDelete
     {
-        return self::getMeta()->softDelete;
+        return static::getMeta()->softDelete;
     }
 
     public static function getAutoWriteTime(): ?AutoWriteTime
     {
-        return self::getMeta()->autoWriteTime;
+        return static::getMeta()->autoWriteTime;
     }
 
     public static function getPkProperty(): string
     {
-        return self::getMeta()->pkProperty;
+        return static::getMeta()->pkProperty;
     }
 
     public static function getPkColumn(): string
     {
-        return self::getMeta()->pkColumn;
+        return static::getMeta()->pkColumn;
     }
 
     public static function getPkType(): IdType
     {
-        return self::getMeta()->pkType;
+        return static::getMeta()->pkType;
     }
 
     /**
@@ -72,7 +72,7 @@ trait HasMetadata
      */
     public static function getColumnMap(): array
     {
-        return self::getMeta()->fields;
+        return static::getMeta()->fields;
     }
 
     /**
@@ -81,7 +81,7 @@ trait HasMetadata
      */
     public static function getRelationInfo(string $name): ?array
     {
-        return self::getMeta()->relations[$name] ?? null;
+        return static::getMeta()->relations[$name] ?? null;
     }
 
     /**
@@ -89,6 +89,6 @@ trait HasMetadata
      */
     public static function getPropertyTypes(): array
     {
-        return self::getMeta()->propertyTypes;
+        return static::getMeta()->propertyTypes;
     }
 }

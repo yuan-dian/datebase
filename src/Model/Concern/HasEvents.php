@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace yuandian\Database\Model\Concern;
 
 use yuandian\Database\Model\Model;
+use yuandian\Database\Model\ModelMeta;
 
 /**
  * 模型事件能力：before/after 生命周期事件 + 全局/模型级监听器。
@@ -57,10 +58,11 @@ trait HasEvents
      *
      * @return bool true=已阻止后续执行
      */
-    protected function triggerEvent(string $event): bool
+    protected function triggerEvent(string $event, ?ModelMeta $meta = null): bool
     {
         // 1. 模型方法 on{Event}（如 onBeforeInsert）— 使用 ModelMeta 缓存避免 method_exists 运行时开销
-        $eventMethods = static::getMeta()->eventMethods;
+        $meta ??= static::getMeta();
+        $eventMethods = $meta->eventMethods;
         if ($eventMethods !== []) {
             $method = 'on' . ucfirst($event);
             if (in_array($method, $eventMethods, true)) {
@@ -95,16 +97,17 @@ trait HasEvents
      *
      * 短路优化：无事件方法且无监听器时直接返回，避免触发事件分发。
      */
-    public function triggerAfterRead(): void
+    public function triggerAfterRead(?ModelMeta $meta = null): void
     {
         // 快速短路：无监听器时跳过事件分发
+        $meta ??= static::getMeta();
         if (!isset(self::$globalListeners['afterRead'])
             && !isset(self::$modelListeners[static::class]['afterRead'])
-            && static::getMeta()->eventMethods === []) {
+            && $meta->eventMethods === []) {
             return;
         }
 
-        $this->triggerEvent('afterRead');
+        $this->triggerEvent('afterRead', $meta);
     }
 
     /**

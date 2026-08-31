@@ -347,7 +347,7 @@ class Mongo extends Connection
         return $this->queryStr;
     }
 
-    public function close()
+    public function close(): void
     {
         $this->mongo = null;
         $this->cursor = null;

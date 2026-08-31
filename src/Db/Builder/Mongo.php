@@ -309,8 +309,8 @@ class Mongo implements BuilderInterface
             }
         } elseif (in_array($exp, ['nin', 'in'])) {
             $value = is_array($value) ? $value : explode(',', $value);
-            foreach ($value as $k => $val) {
-                $value[$k] = $this->parseValue($query, $val, $key);
+            foreach ($value as $idx => $val) {
+                $value[$idx] = $this->parseValue($query, $val, $key);
             }
             $result[$key] = ['$' . $exp => $value];
         } elseif ('regex' == $exp) {
@@ -493,11 +493,11 @@ class Mongo implements BuilderInterface
             $options['limit'] = 1;
         }
 
-        $query = new MongoQuery($where, $options);
+        $mongoQuery = new MongoQuery($where, $options);
 
         $this->log('find', $where, $options);
 
-        return $query;
+        return $mongoQuery;
     }
 
     public function count(Query $query): Command
