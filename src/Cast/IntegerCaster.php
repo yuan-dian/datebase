@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Cast;
 
-final readonly class IntegerCaster implements Caster
+final class IntegerCaster implements Caster
 {
     public function fromDb(mixed $value): ?int
     {

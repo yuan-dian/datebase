@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Db\Expression;
 
-readonly class WhereClause
+class WhereClause
 {
     public function __construct(
-        public string $field,
-        public string $key,
-        public string $operator,
-        public mixed  $value,
+        public readonly string $field,
+        public readonly string $key,
+        public readonly string $operator,
+        public readonly mixed  $value,
     ) {}
 }

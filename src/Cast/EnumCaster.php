@@ -6,10 +6,10 @@ namespace yuandian\Database\Cast;
 
 use BackedEnum;
 
-final readonly class EnumCaster implements Caster
+final class EnumCaster implements Caster
 {
     public function __construct(
-        private string $class,
+        private readonly string $class,
     ) {
     }
 

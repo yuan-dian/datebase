@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Cast;
 
-final readonly class ObjectCaster implements Caster
+final class ObjectCaster implements Caster
 {
     public function __construct(
-        private string $class,
+        private readonly string $class,
     ) {
     }
 

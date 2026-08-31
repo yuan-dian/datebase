@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Cast;
 
-final readonly class FloatCaster implements Caster
+final class FloatCaster implements Caster
 {
     public function fromDb(mixed $value): ?float
     {

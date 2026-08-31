@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Cast;
 
-final readonly class JsonCaster implements Caster
+final class JsonCaster implements Caster
 {
     public function __construct(
-        private ?string $castTo = null,
+        private readonly ?string $castTo = null,
     ) {
     }
 

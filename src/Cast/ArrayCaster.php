@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Cast;
 
-final readonly class ArrayCaster implements Caster
+final class ArrayCaster implements Caster
 {
     public function __construct(
-        private ?Caster $elementCaster = null,
+        private readonly ?Caster $elementCaster = null,
     ) {
     }
 

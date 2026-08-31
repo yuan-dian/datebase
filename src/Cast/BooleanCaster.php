@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace yuandian\Database\Cast;
 
-final readonly class BooleanCaster implements Caster
+final class BooleanCaster implements Caster
 {
     public function fromDb(mixed $value): ?bool
     {
